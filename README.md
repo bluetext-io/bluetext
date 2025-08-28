@@ -52,41 +52,11 @@ For development with auto-rebuild:
 npm run watch
 ```
 
-## Sample Prompts
-
-### Getting Started
-```
-Get the main Bluetext documentation from the bluetext mcp server to understand the framework and available resources.
-```
-
-### React Web App
-```
-Get the polytope documentation and a list of all available blueprints from the bluetext mcp server.
-
-Generate a Polytope React app that runs on port 3000 by default.
-```
-
-
-### Python API Server
+## Sample Prompt
 
 ```
-Get the polytope documentation and a list of all available blueprints from the bluetext mcp server.
+Read bluetext://intro
 
-Generate a Polytope Python api that runs on port 4000 by default.
+Add a React web app, a python api, a kong api gateway, a couchbase server, and a curity server module and run them as part of a template 'stack'.
 ```
 
-### Using Standard Modules
-
-```
-Get the polytope documentation and standard modules documentation from the bluetext mcp server.
-
-Create a Polytope configuration that uses the polytope/python module to run a Flask API server with a PostgreSQL database using the polytope/postgres module.
-```
-
-### Custom Container Setup
-
-```
-Get the polytope/container and polytope/node standard module documentation from the bluetext mcp server.
-
-Create a Polytope setup that runs a custom Node.js application with specific environment variables and port configuration using the standard modules.
-```
