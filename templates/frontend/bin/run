@@ -1,0 +1,12 @@
+#!/bin/sh
+
+. "$(dirname "$0")/init"
+
+trap 'jobs -p | xargs -r kill' EXIT
+
+if [ -f /etc/os-release ] && grep -q Alpine /etc/os-release; then
+  apk add -q --no-progress --no-cache watchexec
+  exec watchexec --watch package.json --restart --shell=none -- bun dev --port ${PORT:-8000} --host ${HOST:-0.0.0.0} --clearScreen=false
+else
+  exec bun dev --port "${PORT:-8000}" --host "${HOST:-0.0.0.0}" --clearScreen=false
+fi

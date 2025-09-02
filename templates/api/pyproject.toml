@@ -1,0 +1,27 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "API service for employee scheduling"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.6",
+    "opperai>=0.28.0",
+    "pandas>=2.2.3",
+    "uvicorn>=0.34.0",
+    "python-multipart>=0.0.9",
+    "uuid>=1.30",
+    "couchbase>=4.3.5",
+    "python-dotenv>=1.0.0",
+    "rich>=13.7.0",
+    "pydantic>=2.6.0",
+]
+
+[project.scripts]
+api = "api.main:main"
+
+[project.optional-dependencies]
+dev = ["uv", "pip"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

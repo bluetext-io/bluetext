@@ -1,0 +1,39 @@
+tools:
+  - id: couchbase
+    module: polytope/couchbase
+    args:
+      id: couchbase
+      image: couchbase:enterprise-7.6.6
+      restart:
+        policy: always
+      services:
+        - id: couchbase
+          ports:
+            - { port: 8091, protocol: http, label: http }
+            - { port: 8092, protocol: http, label: capi }
+            - { port: 8093, protocol: http, label: query }
+            - { port: 8094, protocol: http, label: fts }
+            - { port: 8095, protocol: http, label: cbas }
+            - { port: 8096, protocol: http, label: eventing }
+            - { port: 11210, protocol: tcp, label: memcached }
+      data-volume:
+        type: volume
+        scope: project
+        id: couchbase-data
+
+  - id: couchbase-init
+    module: polytope/python
+    args:
+      image: python:3.12-slim
+      id: init-couchbase
+      code: { type: host, path: ./src/couchbase-init }
+      cmd: ./bin/run
+      restart: { policy: on-failure }
+      env:
+        - { name: COUCHBASE_HOST, value: couchbase }
+        - { name: COUCHBASE_USERNAME, value: user }
+        - { name: COUCHBASE_PASSWORD, value: password }
+        - { name: COUCHBASE_MAIN_BUCKET_NAME, value: main }
+      mounts:
+        - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache }}
+        - { path: /app/conf/, source: { type: host, path: ./conf/couchbase }}

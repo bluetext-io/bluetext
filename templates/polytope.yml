@@ -1,0 +1,87 @@
+tools:
+  add-frontend:
+    info: |
+      Creates a frontend project (with bun+shadcn+react-router v7) at the supplied path.
+      Always use this when creating a new frontend project.
+      This also adds and runs a Polytope module that runs the frontend in dev mode in a container
+      (with full hot reload including for dependency changes) together with an associated service.
+      Another Polytope module is created for adding dependencies in the subproject.
+    await: [scaffold-frontend]
+    params:
+      - id: path
+        info: Path to the template to scaffold.
+        type: str
+    run:
+      - id: scaffold-frontend
+        module: polytope/scaffold
+        args:
+          template: templates/frontend
+          path: "bluetext-demo-v0/{pt.param path}"
+          strip-path-prefix: "bluetext-demo-v0"
+      - id: frontend
+        after:
+          step: scaffold-frontend
+        code: |-
+          #pt-clj
+          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
+              (clojure.string/replace  #".*/" "")
+              (pt/call-module {}))
+  add-backend:
+    info: |
+      Creates a backend project (with uv+FastAPI+SQLModel, prepared for Couchbase) at the supplied path.
+      Always use this when creating a new backend service.
+      This also adds and runs a Polytope module that runs the backend in dev mode in a container
+      (with full hot reload including for dependency changes) together with an associated service.
+      Another Polytope module is created for adding dependencies in the subproject.
+    await: [scaffold-backend]
+    params:
+      - id: path
+        info: Path to the template to scaffold.
+        type: str
+    run:
+      - id: scaffold-backend
+        module: polytope/scaffold
+        args:
+          template: templates/api
+          path: "bluetext-demo-v0/{pt.param path}"
+          strip-path-prefix: "bluetext-demo-v0"
+      - id: backend
+        after:
+          step: scaffold-backend
+        code: |-
+          #pt-clj
+          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
+              (clojure.string/replace  #".*/" "")
+              (pt/call-module {}))
+  add-couchbase:
+    info: |
+      Adds a Couchbase subproject with associated configuration at the given path.
+      Runs the Couchbase server with a basic dev setup (no auth etc).
+    await: [scaffold-postgres]
+    params:
+      - id: path
+        info: Path to the template to scaffold.
+        type: str
+    run:
+      - id: scaffold-couchbase
+        module: polytope/scaffold
+        args:
+          template: templates/couchbase
+          path: "bluetext-demo-v0/{pt.param path}"
+          strip-path-prefix: "bluetext-demo-v0"
+      - id: couchbase-init
+        after:
+          step: scaffold-couchbase
+        code: |-
+          #pt-clj
+          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
+              (clojure.string/replace  #".*/" "")
+              (pt/call-module {}))
+      - id: couchbase
+        after:
+          step: scaffold-couchbase
+        code: |-
+          #pt-clj
+          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
+              (clojure.string/replace  #".*/" "")
+              (pt/call-module {}))

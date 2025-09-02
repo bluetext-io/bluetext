@@ -1,0 +1,10 @@
+modules:
+  - id: {{ project-name }}
+    info: |
+      Runs a PostgreSQL database server in dev mode.
+      Uses the persistent volume `postgres-data-{{ project-name }}`.
+      Exposes the PostgreSQL port on `postgres:5432` within the job, and at `localhost:5432` on the host.
+      Default database: postgres, default user: postgres
+    module: polytope/postgres!simple
+    args:
+      data-volume: { id: postgres-data-{{ project-name }}, type: volume, scope: project }

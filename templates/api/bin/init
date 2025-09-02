@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+[[ "${TRACE:-}" == true ]] && set -o xtrace
+
+readonly project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &> /dev/null && pwd)"
+cd "$project_root"
+
+export VIRTUAL_ENV="$HOME/.cache/venvs/api"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
+
+if [ ! -x "$VIRTUAL_ENV/bin/python" ]; then
+  echo "Setting up virtual env..."
+  PYTHON_CMD="$(command -v python3 || command -v python)"
+  "$PYTHON_CMD" -m venv "$VIRTUAL_ENV"
+fi
+
+if ! "$VIRTUAL_ENV/bin/python" -m pip --version &>/dev/null; then
+  echo "Installing pip..."
+  "$VIRTUAL_ENV/bin/python" -m ensurepip --upgrade
+fi
+
+if [ ! -x "$VIRTUAL_ENV/bin/uv" ]; then
+  echo "Installing uv..."
+  "$VIRTUAL_ENV/bin/python" -m pip install --disable-pip-version-check --root-user-action=ignore uv
+fi
+
+uv sync --no-progress --active --all-extras
