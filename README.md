@@ -12,6 +12,20 @@ To install the newest version of Polytope or update it, run:
 curl -s https://polytope.com/install.sh | sh -s -- --edge
 ```
 
+### Making PT Tool Available (Pre-release Users)
+
+If you're on a Polytope pre-release and want to make the `pt` tool available from your command line:
+
+**To enable for current session only:**
+```bash
+export PATH="~/.local/bin/polytope:$PATH" && source ~/.zshrc
+```
+
+**To enable permanently:**
+```bash
+echo 'export PATH="~/.local/bin/polytope:$PATH"' >> ~/.zshrc && source ~/.zshrc
+```
+
 ## Setup Instructions
 
 ### Step 1: Start Polytope MCP Server
