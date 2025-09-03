@@ -1,5 +1,5 @@
 include:
   - templates
-  - bluetext-demo-v0/frontend
-  - bluetext-demo-v0/backend
-  - bluetext-demo-v0/modules/postgres
+  - project/frontend
+  - project/backend
+  - project/modules/postgres
