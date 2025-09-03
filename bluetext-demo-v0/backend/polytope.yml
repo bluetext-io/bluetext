@@ -1,5 +1,5 @@
 modules:
-  - id: {{ project-name }}
+  - id: backend
     info: "'Base' module for other modules in this file to build on."
     module: polytope/python
     params:
@@ -17,18 +17,18 @@ modules:
         type: [default, [enum, always, on-failure], always]
       - id: id
         info: The container ID to use.
-        type: [default, str, {{ project-name }}]
+        type: [default, str, backend]
     args:
       id: pt.param id
       image: astral/uv:python3.13-alpine
-      code: { type: host, path: {{ path }} }
+      code: { type: host, path: bluetext-demo-v0/backend }
       cmd: pt.param cmd
       restart:
         policy: pt.param restart-policy
       services: |-
         #pt-js
         params.cmd === "./bin/run"
-          ? [{ id: "{{ project-name }}", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
+          ? [{ id: "backend", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
           : null;
       env:
         - { name: HTTP_AUTORELOAD, value: pt.param dev-mode }
@@ -36,15 +36,15 @@ modules:
         - { name: LOG_LEVEL, value: INFO }
         - { name: POSTGRES_HOST, value: postgres }
       mounts:
-        - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
-  - id: {{ project-name }}-add
+        - { path: /root/.cache/, source: { type: volume, scope: project, id: backend-dependency-cache } }
+  - id: backend-add
     info: Adds one or more packages to the pyproject.toml file.
-    module: {{ project-name }}
+    module: backend
     params:
       - id: packages
         info: comma/whitespace-separated list of python packages to add to pyproject.toml
         type: str
     args:
-      id: {{ project-name }}-add
+      id: backend-add
       restart-policy: on-failure
       cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'

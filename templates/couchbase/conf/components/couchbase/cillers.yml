@@ -1,5 +1,0 @@
-process:
-  couchbase
-
-init:
-  couchbase-init

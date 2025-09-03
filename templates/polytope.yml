@@ -16,8 +16,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/frontend
-          path: "bluetext-demo-v0/{pt.param path}"
-          strip-path-prefix: "bluetext-demo-v0"
+          path: bluetext-demo-v0/{pt.param path}
       - id: frontend
         after:
           step: scaffold-frontend
@@ -28,7 +27,7 @@ tools:
               (pt/call-module {}))
   add-backend:
     info: |
-      Creates a backend project (with uv+FastAPI+SQLModel, prepared for Couchbase) at the supplied path.
+      Creates a backend project (with uv+FastAPI+SQLModel, prepared for Postgres) at the supplied path.
       Always use this when creating a new backend service.
       This also adds and runs a Polytope module that runs the backend in dev mode in a container
       (with full hot reload including for dependency changes) together with an associated service.
@@ -43,8 +42,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/api
-          path: "bluetext-demo-v0/{pt.param path}"
-          strip-path-prefix: "bluetext-demo-v0"
+          path: bluetext-demo-v0/{pt.param path}
       - id: backend
         after:
           step: scaffold-backend
@@ -53,35 +51,45 @@ tools:
           (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
               (clojure.string/replace  #".*/" "")
               (pt/call-module {}))
+  add-postgres:
+    info: |
+      Adds a Postgres subproject with associated configuration at the given path.
+      Runs the Postgres server with a basic dev setup (no auth etc).
+    await: [scaffold-postgres]
+    run:
+      - id: scaffold-postgres
+        module: polytope/scaffold
+        args:
+          template: templates/postgres
+          path: "bluetext-demo-v0/modules/postgres"
+      - id: postgres
+        after:
+          step: scaffold-postgres
+        code: |-
+          #pt-clj
+          (pt/call-module "postgres" {})
+
   add-couchbase:
     info: |
-      Adds a Couchbase subproject with associated configuration at the given path.
-      Runs the Couchbase server with a basic dev setup (no auth etc).
+      Adds a Postgres subproject with associated configuration at the given path.
+      Runs the Postgres server with a basic dev setup (no auth etc).
     await: [scaffold-postgres]
-    params:
-      - id: path
-        info: Path to the template to scaffold.
-        type: str
     run:
       - id: scaffold-couchbase
         module: polytope/scaffold
         args:
           template: templates/couchbase
-          path: "bluetext-demo-v0/{pt.param path}"
-          strip-path-prefix: "bluetext-demo-v0"
-      - id: couchbase-init
+          path: "bluetext-demo-v0/modules/couchbase"
+      - id: config-manager
         after:
           step: scaffold-couchbase
         code: |-
           #pt-clj
-          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
-              (clojure.string/replace  #".*/" "")
-              (pt/call-module {}))
+          (pt/call-module "config-manager" {})
       - id: couchbase
         after:
           step: scaffold-couchbase
         code: |-
           #pt-clj
-          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
-              (clojure.string/replace  #".*/" "")
-              (pt/call-module {}))
+          (pt/call-module "couchbase" {})
+
