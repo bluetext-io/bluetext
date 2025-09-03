@@ -16,7 +16,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/frontend
-          path: bluetext-demo-v0/{pt.param path}
+          path: project/{pt.param path}
       - id: frontend
         after:
           step: scaffold-frontend
@@ -42,7 +42,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/api
-          path: bluetext-demo-v0/{pt.param path}
+          path: project/{pt.param path}
       - id: backend
         after:
           step: scaffold-backend
@@ -61,7 +61,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/postgres
-          path: "bluetext-demo-v0/modules/postgres"
+          path: "project/modules/postgres"
       - id: postgres
         after:
           step: scaffold-postgres
@@ -79,7 +79,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/couchbase
-          path: "bluetext-demo-v0/modules/couchbase"
+          path: "project/modules/couchbase"
       - id: config-manager
         after:
           step: scaffold-couchbase
