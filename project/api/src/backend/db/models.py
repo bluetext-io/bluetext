@@ -2,19 +2,7 @@ from sqlmodel import SQLModel, Field
 from typing import Optional
 from datetime import datetime
 
-# Contact form submission model
-class Contact(SQLModel, table=True):
-    __tablename__ = "contact"
-    __table_args__ = {"extend_existing": True}  # Prevents duplicate registration errors
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(max_length=100)
-    email: str = Field(max_length=255, index=True)
-    subject: str = Field(max_length=200)
-    message: str = Field(max_length=2000)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-# Add your other SQLModel models here
+# Add your SQLModel models here
 # Example:
 #
 # class User(SQLModel, table=True):

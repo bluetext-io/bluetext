@@ -75,6 +75,12 @@ tools:
       Runs the Postgres server with a basic dev setup (no auth etc).
     await: [scaffold-postgres]
     run:
+      - id: scaffold-config-manager
+        module: polytope/scaffold
+        args:
+          template: templates/config-manager
+          path: "project/modules/config-manager"
+
       - id: scaffold-couchbase
         module: polytope/scaffold
         args:
@@ -82,14 +88,18 @@ tools:
           path: "project/modules/couchbase"
       - id: config-manager
         after:
-          step: scaffold-couchbase
+          - step: scaffold-couchbase
+          - step: scaffold-config-manager
         code: |-
           #pt-clj
           (pt/call-module "config-manager" {})
       - id: couchbase
         after:
-          step: scaffold-couchbase
+          - step: scaffold-couchbase
+          - step: scaffold-config-manager
         code: |-
           #pt-clj
           (pt/call-module "couchbase" {})
-
+modules:
+  - id: foo
+    module: polytope/hello-world

@@ -6,10 +6,19 @@ from datetime import datetime
 from .utils import log
 from . import conf
 from .db import create_item, get_item, get_items, update_item, delete_item # noqa: F401
-from .db.models import Contact
 
 logger = log.get_logger(__name__)
 router = APIRouter()
+
+# Contact form model
+class ContactForm(BaseModel):
+    name: str
+    email: str
+    message: str
+
+class ContactFormResponse(BaseModel):
+    id: str
+    message: str
 
 @router.get("/")
 async def root():
@@ -40,75 +49,87 @@ async def health_check():
             "status": "disabled",
             "message": "PostgreSQL is disabled (USE_POSTGRES=False)"
         }
+    
+    # Check Couchbase connectivity if enabled
+    if conf.USE_COUCHBASE:
+        from .couchbase_client import is_couchbase_connected
+
+        cb_connected = await is_couchbase_connected()
+        health_status["couchbase"] = {
+            "status": "healthy" if cb_connected else "unhealthy",
+            "connected": cb_connected
+        }
+
+        if not cb_connected:
+            health_status["status"] = "degraded"
+    else:
+        health_status["couchbase"] = {
+            "status": "disabled",
+            "message": "Couchbase is disabled (USE_COUCHBASE=False)"
+        }
 
     return health_status
 
-# Contact form endpoints
-class ContactRequest(BaseModel):
-    name: str
-    email: str
-    subject: str
-    message: str
-
-@router.post("/contact", response_model=Contact)
-async def submit_contact_form(contact_data: ContactRequest):
+@router.post("/api/contact", response_model=ContactFormResponse)
+async def submit_contact_form(contact_form: ContactForm):
     """Submit a contact form."""
-    logger.info(f"Received contact form submission: {contact_data}")
-    
-    if not conf.USE_POSTGRES:
+    if not conf.USE_COUCHBASE:
         raise HTTPException(status_code=503, detail="Database not configured")
 
     try:
-        # Create a Contact instance from the request data
-        contact = Contact(
-            name=contact_data.name,
-            email=contact_data.email,
-            subject=contact_data.subject,
-            message=contact_data.message,
-            created_at=datetime.utcnow()
+        from .couchbase_client import create_contact_form
+        
+        doc_id = await create_contact_form(
+            name=contact_form.name,
+            email=contact_form.email,
+            message=contact_form.message
         )
         
-        logger.info(f"Created Contact instance: {contact}")
+        return ContactFormResponse(
+            id=doc_id,
+            message="Contact form submitted successfully"
+        )
         
-        # Save to database
-        saved_contact = await create_item(contact)
-        logger.info(f"Contact form submitted by {contact_data.name} ({contact_data.email})")
-        return saved_contact
     except Exception as e:
-        logger.error(f"Failed to save contact form: {e}")
-        logger.error(f"Exception type: {type(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Failed to save contact form: {str(e)}")
+        logger.error(f"Failed to submit contact form: {e}")
+        raise HTTPException(status_code=500, detail="Failed to submit contact form")
 
-@router.get("/contacts", response_model=List[Contact])
-async def list_contacts(limit: int = 100, offset: int = 0):
-    """List all contact form submissions with pagination."""
-    if not conf.USE_POSTGRES:
+@router.get("/api/contact/{contact_id}")
+async def get_contact_form(contact_id: str):
+    """Get a contact form by ID."""
+    if not conf.USE_COUCHBASE:
         raise HTTPException(status_code=503, detail="Database not configured")
 
     try:
-        return await get_items(Contact, limit=limit, offset=offset)
-    except Exception as e:
-        logger.error(f"Failed to retrieve contacts: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve contacts")
-
-@router.get("/contacts/{contact_id}", response_model=Contact)
-async def get_contact(contact_id: int):
-    """Get a specific contact form submission by ID."""
-    if not conf.USE_POSTGRES:
-        raise HTTPException(status_code=503, detail="Database not configured")
-
-    try:
-        contact = await get_item(Contact, contact_id)
+        from .couchbase_client import get_contact_form
+        
+        contact = await get_contact_form(contact_id)
         if not contact:
-            raise HTTPException(status_code=404, detail="Contact not found")
+            raise HTTPException(status_code=404, detail="Contact form not found")
+        
         return contact
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to retrieve contact {contact_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve contact")
+        logger.error(f"Failed to get contact form: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get contact form")
+
+@router.get("/api/contacts")
+async def list_contact_forms():
+    """Get all contact forms."""
+    if not conf.USE_COUCHBASE:
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    try:
+        from .couchbase_client import list_all_contact_forms
+        
+        forms = await list_all_contact_forms()
+        return {"forms": forms, "count": len(forms)}
+        
+    except Exception as e:
+        logger.error(f"Failed to list contact forms: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list contact forms")
 
 # Database route examples (uncomment and modify when you have models)
 #

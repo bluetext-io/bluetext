@@ -1,5 +1,13 @@
 include:
   - templates
-  - project/frontend
-  - project/backend
-  - project/modules/postgres
+  - project/modules/couchbase
+  - project/website
+  - project/api
+
+templates:
+  - id: stack
+    run:
+    - website
+    - api
+    - couchbase
+    - config-manager

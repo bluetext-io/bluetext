@@ -1,0 +1,28 @@
+modules:
+  - id: couchbase
+    info: |
+      Runs a couchbase database server in dev mode.
+      Uses the persistent volume `couchbase-data`.
+      Exposes the couchbase port on `couchbase:5432` within the job, and at `localhost:5432` on the host.
+      Default database: couchbase, default user: user
+    module: polytope/couchbase
+    args:
+      image: couchbase:enterprise-7.6.6
+      data-volume: { id: couchbase-data, type: volume, scope: project }
+  - id: config-manager
+    info: Manages Redpanda topics and Couchbase buckets/scopes/collections
+    module: polytope/container
+    args:
+      image: gcr.io/arched-inkwell-420116/config-manager:latest
+      id: config-manager
+      restart: { policy: on-failure, max-restarts: 3 }
+      env:
+        - { name: ENVIRONMENT, value: dev }
+        - { name: SERVICES, value: couchbase }
+        - { name: COUCHBASE_HOST, value: couchbase }
+        - { name: COUCHBASE_TLS, value: false }
+        - { name: COUCHBASE_USERNAME, value: user }
+        - { name: COUCHBASE_PASSWORD, value: password }
+      mounts:
+        - { path: /config-manager/conf, source: { type: host, path: ./project/modules/config-manager } }
+        - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache } }

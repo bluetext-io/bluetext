@@ -7,7 +7,10 @@ logger = log.get_logger(__name__)
 
 # Set to False if you don't want to use PostgreSQL
 # When False, all database functionality will be disabled
-USE_POSTGRES = True
+USE_POSTGRES = False
+
+# Set to True to use Couchbase for data storage
+USE_COUCHBASE = True
 
 #### Types ####
 
@@ -26,6 +29,12 @@ class PostgresConf(BaseModel):
 class PostgresPoolConf(BaseModel):
     min_size: int
     max_size: int
+
+class CouchbaseConf(BaseModel):
+    host: str
+    bucket: str
+    username: str
+    password: str
 
 #### Env Vars ####
 
@@ -90,6 +99,29 @@ POSTGRES_POOL_MAX = EnvVarSpec(
     type=(int, ...)
 )
 
+## Couchbase ##
+
+COUCHBASE_HOST = EnvVarSpec(
+    id="COUCHBASE_HOST",
+    default="couchbase"
+)
+
+COUCHBASE_BUCKET = EnvVarSpec(
+    id="COUCHBASE_BUCKET",
+    default="contact-forms"
+)
+
+COUCHBASE_USERNAME = EnvVarSpec(
+    id="COUCHBASE_USERNAME",
+    default="Administrator"
+)
+
+COUCHBASE_PASSWORD = EnvVarSpec(
+    id="COUCHBASE_PASSWORD",
+    default="password",
+    is_secret=True
+)
+
 #### Validation ####
 
 def validate() -> bool:
@@ -109,6 +141,15 @@ def validate() -> bool:
             POSTGRES_PORT,
             POSTGRES_POOL_MIN,
             POSTGRES_POOL_MAX,
+        ])
+    
+    # Only validate Couchbase vars if USE_COUCHBASE is True
+    if USE_COUCHBASE:
+        env_vars.extend([
+            COUCHBASE_HOST,
+            COUCHBASE_BUCKET,
+            COUCHBASE_USERNAME,
+            COUCHBASE_PASSWORD,
         ])
 
     return env.validate(env_vars)
@@ -144,4 +185,15 @@ def get_postgres_pool_conf() -> PostgresPoolConf:
     return PostgresPoolConf(
         min_size=env.parse(POSTGRES_POOL_MIN),
         max_size=env.parse(POSTGRES_POOL_MAX),
+    )
+
+def get_couchbase_conf() -> CouchbaseConf:
+    """Get Couchbase connection configuration.
+    Only call this if USE_COUCHBASE is True.
+    """
+    return CouchbaseConf(
+        host=env.parse(COUCHBASE_HOST),
+        bucket=env.parse(COUCHBASE_BUCKET),
+        username=env.parse(COUCHBASE_USERNAME),
+        password=env.parse(COUCHBASE_PASSWORD),
     )

@@ -15,12 +15,22 @@ async def lifespan(app: FastAPI):
     if conf.USE_POSTGRES:
         from .db import init_db, close_db
         await init_db()
+    
+    # Initialize Couchbase connection if enabled
+    if conf.USE_COUCHBASE:
+        from .couchbase_client import init_couchbase, close_couchbase
+        await init_couchbase()
 
     yield
 
     # Clean up database connection if enabled
     if conf.USE_POSTGRES:
         await close_db()
+    
+    # Clean up Couchbase connection if enabled
+    if conf.USE_COUCHBASE:
+        from .couchbase_client import close_couchbase
+        await close_couchbase()
 
 app = FastAPI(
     title="Backend API",
