@@ -1,9 +1,12 @@
 from pydantic import BaseModel
 
-from .utils import env, log
+from .utils import auth, env, log
 from .utils.env import EnvVarSpec
 
 logger = log.get_logger(__name__)
+
+# Set to True to enable authentication
+USE_AUTH = False
 
 # Set to False if you don't want to use PostgreSQL
 # When False, all database functionality will be disabled
@@ -32,6 +35,12 @@ class PostgresPoolConf(BaseModel):
     max_size: int
 
 #### Env Vars ####
+
+## Auth ##
+
+AUTH_OIDC_JWK_URL = EnvVarSpec(id="AUTH_OIDC_JWK_URL", is_optional=True)
+AUTH_OIDC_AUDIENCE = EnvVarSpec(id="AUTH_OIDC_AUDIENCE", is_optional=True)
+AUTH_OIDC_ISSUER = EnvVarSpec(id="AUTH_OIDC_ISSUER", is_optional=True)
 
 ## Logging ##
 
@@ -131,6 +140,14 @@ def validate() -> bool:
         HTTP_AUTORELOAD,
     ]
 
+    # Only validate auth vars if USE_AUTH is True
+    if USE_AUTH:
+        env_vars.extend([
+            AUTH_OIDC_JWK_URL,
+            AUTH_OIDC_AUDIENCE,
+            AUTH_OIDC_ISSUER,
+        ])
+
     # Only validate PostgreSQL vars if USE_POSTGRES is True
     if USE_POSTGRES:
         env_vars.extend([
@@ -156,6 +173,16 @@ def validate() -> bool:
     return env.validate(env_vars)
 
 #### Getters ####
+
+def get_auth_config() -> auth.AuthClientConfig:
+    """Get authentication configuration.
+    Only call this if USE_AUTH is True.
+    """
+    return auth.AuthClientConfig(
+        jwk_url=env.parse(AUTH_OIDC_JWK_URL),
+        audience=env.parse(AUTH_OIDC_AUDIENCE),
+        issuer=env.parse(AUTH_OIDC_ISSUER),
+    )
 
 def get_log_level() -> str:
     return env.parse(LOG_LEVEL)
