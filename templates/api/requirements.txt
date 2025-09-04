@@ -1,0 +1,16 @@
+# Core FastAPI dependencies - required
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.9.2
+
+# Database clients - uncomment based on your choice
+# PostgreSQL support
+# sqlmodel==0.0.24
+# psycopg[binary,pool]==3.2.9
+
+# Couchbase support  
+# couchbase==4.3.2
+
+# Optional utilities
+# PyJWT==2.9.0
+# cryptography==43.0.1

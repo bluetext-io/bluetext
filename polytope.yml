@@ -1,13 +1,4 @@
 include:
   - templates
   - project/modules/couchbase
-  - project/website
-  - project/api
-
-templates:
-  - id: stack
-    run:
-    - website
-    - api
-    - couchbase
-    - config-manager
+  - project/modules/config-manager
