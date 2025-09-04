@@ -24,15 +24,12 @@ async def health_check(request: Request):
 
     # Check database connectivity if enabled
     if conf.USE_POSTGRES:
-        from .db import is_connected
+        from .db import health_check as db_health_check
 
-        db_connected = await is_connected()
-        health_status["database"] = {
-            "status": "healthy" if db_connected else "unhealthy",
-            "connected": db_connected
-        }
+        db_health = db_health_check()
+        health_status["database"] = db_health
 
-        if not db_connected:
+        if not db_health.get("connected", False):
             health_status["status"] = "degraded"
     else:
         health_status["database"] = {
