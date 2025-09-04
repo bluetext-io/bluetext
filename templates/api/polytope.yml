@@ -20,7 +20,7 @@ modules:
         type: [default, str, {{ project-name }}]
     args:
       id: pt.param id
-      image: astral/uv:python3.13-alpine
+      image: astral/uv:python3.13-bookworm-slim
       code: { type: host, path: {{ path }} }
       cmd: pt.param cmd
       restart:
