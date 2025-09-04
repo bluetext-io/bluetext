@@ -1,4 +1,2 @@
 include:
   - templates
-  - project/modules/couchbase
-  - project/modules/config-manager
