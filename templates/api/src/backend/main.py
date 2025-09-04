@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
         couchbase_config = conf.get_couchbase_conf()
         app.state.couchbase_client = CouchbaseClient(couchbase_config)
         await app.state.couchbase_client.initialize()
+        await app.state.couchbase_client.init_connection()
 
     yield
 
