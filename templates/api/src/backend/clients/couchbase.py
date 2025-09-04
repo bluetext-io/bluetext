@@ -21,15 +21,14 @@ logger = logging.getLogger(__name__)
 class CouchbaseConf:
     """Couchbase configuration"""
     host: str
-    port: int
     username: str
     password: str
     bucket: str
     protocol: str = "couchbase"
-    
+
     def get_connection_url(self) -> str:
         """Get the connection URL for Couchbase"""
-        return f"{self.protocol}://{self.host}:{self.port}"
+        return f"{self.protocol}://{self.host}/{self.bucket}"
 
 
 @dataclass
@@ -72,7 +71,7 @@ class Keyspace:
 class CouchbaseClient:
     """
     Clean Couchbase client for basic operations.
-    
+
     Only initializes if USE_COUCHBASE is True in configuration.
     """
 
@@ -89,7 +88,7 @@ class CouchbaseClient:
         """Initialize the Couchbase client"""
         if not self._config:
             raise ValueError("CouchbaseConf required")
-            
+
         self._initialized = True
         logger.info("Couchbase client initialized")
 
@@ -97,7 +96,7 @@ class CouchbaseClient:
         """Initialize connection with retry loop - call in background task"""
         if not self._initialized:
             return
-            
+
         self._connection_task = asyncio.create_task(self._connection_retry_loop())
 
     async def _connection_retry_loop(self):
@@ -111,12 +110,12 @@ class CouchbaseClient:
             except Exception as e:
                 self._last_connection_error = str(e)
                 current_time = time.time()
-                
+
                 # Log error every 10 seconds
                 if current_time - self._last_error_log_time >= 10:
                     logger.warning(f"Couchbase connection failed, retrying: {e}")
                     self._last_error_log_time = current_time
-                
+
                 await asyncio.sleep(1)  # Wait 1 second before retry
 
     async def close(self):
@@ -252,12 +251,12 @@ class CouchbaseClient:
         """Check if Couchbase connection is healthy (non-blocking for health endpoints)"""
         if not self._initialized:
             return {"connected": False, "status": "not_initialized"}
-        
+
         if not self._connected:
             return {
-                "connected": False, 
+                "connected": False,
                 "status": "connecting",
                 "last_error": self._last_connection_error
             }
-        
+
         return {"connected": True, "status": "healthy"}
