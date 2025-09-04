@@ -7,7 +7,7 @@ logger = log.get_logger(__name__)
 
 # Set to False if you don't want to use PostgreSQL
 # When False, all database functionality will be disabled
-USE_POSTGRES = True
+USE_POSTGRES = False
 
 # Set to True if you want to use Couchbase
 # When False, couchbase client will not be initialized
