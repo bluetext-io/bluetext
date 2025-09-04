@@ -13,8 +13,9 @@ logger = log.get_logger(__name__)
 async def lifespan(app: FastAPI):
     # Initialize database connection if enabled
     if conf.USE_POSTGRES:
-        from .db import init_db, close_db
+        from .db import init_db, init_connection, close_db
         await init_db()
+        await init_connection()
     
     # Initialize Couchbase client if enabled
     if conf.USE_COUCHBASE:

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from typing import Optional
 from psycopg_pool import AsyncConnectionPool
@@ -11,6 +12,9 @@ logger = log.get_logger(__name__)
 
 _pool: Optional[AsyncConnectionPool] = None
 _reconnect_task: Optional[asyncio.Task] = None
+_connected = False
+_last_connection_error = None
+_last_error_log_time = 0
 
 def get_conn_str() -> str:
     """Build PostgreSQL connection string from environment variables."""
@@ -47,25 +51,29 @@ async def create_pool() -> AsyncConnectionPool:
     return pool
 
 async def init_db() -> None:
-    """Initialize database connection pool and create tables.
-
-    Retries connection every 10 seconds if PostgreSQL is unavailable.
-    """
-    global _pool, _reconnect_task
-
+    """Initialize database connection (non-blocking)."""
     if not conf.USE_POSTGRES:
         logger.info("PostgreSQL is disabled (USE_POSTGRES=False)")
         return
 
-    retry_count = 0
-    while True:
+    logger.info("PostgreSQL client initialized")
+
+async def init_connection() -> None:
+    """Initialize connection with retry loop - call in background task"""
+    global _reconnect_task
+    _reconnect_task = asyncio.create_task(_connection_retry_loop())
+
+async def _connection_retry_loop() -> None:
+    """Retry connection loop that runs in background"""
+    global _pool, _connected
+    
+    while not _connected:
         try:
             logger.info("Connecting to PostgreSQL...")
             _pool = await create_pool()
 
             # Test the connection
             async with _pool.connection() as conn:
-                # Test connection
                 async with conn.cursor() as cur:
                     await cur.execute("SELECT 1")
                     result = await cur.fetchone()
@@ -75,17 +83,24 @@ async def init_db() -> None:
             # Create tables using SQLModel
             await create_tables()
 
+            _connected = True
+            logger.info("PostgreSQL connection established successfully")
+            
             # Start background health check
-            _reconnect_task = asyncio.create_task(_monitor_connection())
+            asyncio.create_task(_monitor_connection())
             break
 
         except Exception as e:
-            retry_count += 1
-            if retry_count == 1:
-                logger.error(f"Failed to connect to PostgreSQL: {e}")
-            if retry_count % 6 == 0:  # Log every minute
-                logger.warning(f"Still trying to connect to PostgreSQL... (attempt {retry_count})")
-            await asyncio.sleep(10)
+            global _last_connection_error, _last_error_log_time
+            _last_connection_error = str(e)
+            current_time = time.time()
+            
+            # Log error every 10 seconds
+            if current_time - _last_error_log_time >= 10:
+                logger.warning(f"PostgreSQL connection failed, retrying: {e}")
+                _last_error_log_time = current_time
+            
+            await asyncio.sleep(1)  # Wait 1 second before retry
 
 async def create_tables() -> None:
     """Create database tables using SQLModel."""
@@ -120,11 +135,16 @@ async def create_tables() -> None:
         # Don't fail startup, just log the error
         logger.warning("Continuing without creating tables. They may need to be created manually.")
 
+async def _ensure_connected():
+    """Ensure database is connected (blocks until connected)"""
+    while not _connected:
+        await asyncio.sleep(0.1)  # Wait for connection
+
 async def _monitor_connection() -> None:
     """Background task to monitor connection health."""
-    global _pool
+    global _pool, _connected
 
-    while _pool:
+    while _pool and _connected:
         try:
             await asyncio.sleep(30)  # Check every 30 seconds
             if _pool:
@@ -134,11 +154,13 @@ async def _monitor_connection() -> None:
                         await cur.fetchone()
         except Exception as e:
             logger.error(f"Database connection lost: {e}")
+            _connected = False
             logger.info("Attempting to reconnect...")
             try:
                 if _pool:
                     await _pool.close()
                 _pool = await create_pool()
+                _connected = True
                 logger.info("Successfully reconnected to database")
             except Exception as reconnect_error:
                 logger.error(f"Failed to reconnect: {reconnect_error}")
@@ -146,7 +168,7 @@ async def _monitor_connection() -> None:
 
 async def close_db() -> None:
     """Close database connection pool."""
-    global _pool, _reconnect_task
+    global _pool, _reconnect_task, _connected
 
     if _reconnect_task:
         _reconnect_task.cancel()
@@ -159,6 +181,7 @@ async def close_db() -> None:
     if _pool:
         await _pool.close()
         _pool = None
+        _connected = False
         logger.info("Database connection pool closed")
 
 def get_pool() -> Optional[AsyncConnectionPool]:
@@ -175,17 +198,18 @@ async def get_connection():
                 await cur.execute("SELECT * FROM users")
                 results = await cur.fetchall()
     """
+    await _ensure_connected()
+    
     if not _pool:
-        if conf.USE_POSTGRES:
-            raise RuntimeError("Database pool not initialized. Call init_db() first.")
-        else:
-            raise RuntimeError("PostgreSQL is disabled (USE_POSTGRES=False)")
+        raise RuntimeError("Database pool not available")
 
     async with _pool.connection() as conn:
         yield conn
 
 async def is_connected() -> bool:
-    """Check if database is connected and responsive."""
+    """Check if database is connected and responsive (blocking)."""
+    await _ensure_connected()
+    
     if not _pool:
         return False
 
@@ -197,3 +221,14 @@ async def is_connected() -> bool:
                 return result and result[0] == 1
     except Exception:
         return False
+
+def health_check() -> dict:
+    """Check if PostgreSQL connection is healthy (non-blocking for health endpoints)"""
+    if not _connected:
+        return {
+            "connected": False, 
+            "status": "connecting",
+            "last_error": _last_connection_error
+        }
+    
+    return {"connected": True, "status": "healthy"}
