@@ -7,8 +7,8 @@ modules:
       id: config-manager
       restart: { policy: on-failure }
       env:
-        - { name: ENVIRONMENT, value: pt.value environment }
-        - { name: SERVICES, value: pt.value config-manager-services }
+        - { name: ENVIRONMENT, value: environment }
+        - { name: SERVICES, value: couchbase }
 
         - { name: COUCHBASE_HOST, value: couchbase }
         - { name: COUCHBASE_USERNAME, value: user }
@@ -18,5 +18,5 @@ modules:
         - { name: REDPANDA_HOST, value: redpanda }
         - { name: REDPANDA_PORT, value: 9092 }
       mounts:
-        - { path: /config-manager/conf, source: { type: host, path: ./modules/config-manager } }
+        - { path: /config-manager/conf, source: { type: host, path: ./project/modules/config-manager } }
         - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache } }
