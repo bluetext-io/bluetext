@@ -9,6 +9,10 @@ logger = log.get_logger(__name__)
 # When False, all database functionality will be disabled
 USE_POSTGRES = True
 
+# Set to True if you want to use Couchbase
+# When False, couchbase client will not be initialized
+USE_COUCHBASE = False
+
 #### Types ####
 
 class HttpServerConf(BaseModel):
