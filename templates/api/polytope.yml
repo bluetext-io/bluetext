@@ -2,27 +2,38 @@ modules:
   - id: {{ project-name }}
     info: "'Base' module for other modules in this file to build on."
     module: polytope/python
+    params:
+      - id: cmd
+        info: The command to run
+        type: [default, str, ./bin/run]
+      - id: dev-mode
+        info: Whether to run in dev mode (with hot reload, debugging)
+        type: [default, bool, true]
+      - id: port
+        info: The port the API will run on
+        type: [default, int, 3030]
+      - id: restart-policy
+        info: Restart policy for the container.
+        type: [default, [enum, always, on-failure], always]
+      - id: id
+        info: The container ID to use.
+        type: [default, str, {{ project-name }}]
     args:
-      id: {{ project-name }}
+      id: pt.param id
       image: astral/uv:python3.13-alpine
       code: { type: host, path: {{ path }} }
-      cmd: ./bin/run
+      cmd: pt.param cmd
       restart:
-        policy: always
-      services:
-        - { id: {{ project-name }}, ports: [{protocol: http, port: 3001, expose-as: 3001}] }
+        policy: pt.param restart-policy
+      services: |-
+        #pt-js
+        params.cmd === "./bin/run"
+          ? [{ id: "{{ project-name }}", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
+          : null;
       env:
-        - { name: HTTP_AUTORELOAD, value: true }
-        - { name: HTTP_PORT, value: 3030 }
+        - { name: HTTP_AUTORELOAD, value: pt.param dev-mode }
+        - { name: HTTP_PORT, value: pt.param port }
         - { name: LOG_LEVEL, value: INFO }
-
-        # Change this section if this api is set up for couchbase and you want to change the credentials
-        - { name: COUCHBASE_URL, value: couchbase://couchbase }
-        - { name: COUCHBASE_USERNAME, value: user }
-        - { name: COUCHBASE_PASSWORD, value: password }
-        - { name: COUCHBASE_BUCKET, value: main }
-
-        # Change this section if this api is set up for postgres and you want to change the port
         - { name: POSTGRES_HOST, value: postgres }
       mounts:
         - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
