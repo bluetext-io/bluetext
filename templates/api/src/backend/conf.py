@@ -98,19 +98,12 @@ POSTGRES_POOL_MAX = EnvVarSpec(
 
 COUCHBASE_HOST = EnvVarSpec(
     id="COUCHBASE_HOST",
-    default="localhost"
-)
-
-COUCHBASE_PORT = EnvVarSpec(
-    id="COUCHBASE_PORT",
-    parse=int,
-    default="11210",
-    type=(int, ...)
+    default="couchbase"
 )
 
 COUCHBASE_USERNAME = EnvVarSpec(
     id="COUCHBASE_USERNAME",
-    default="admin"
+    default="user"
 )
 
 COUCHBASE_PASSWORD = EnvVarSpec(
@@ -121,7 +114,7 @@ COUCHBASE_PASSWORD = EnvVarSpec(
 
 COUCHBASE_BUCKET = EnvVarSpec(
     id="COUCHBASE_BUCKET",
-    default="default"
+    default="main"
 )
 
 COUCHBASE_PROTOCOL = EnvVarSpec(
@@ -149,12 +142,11 @@ def validate() -> bool:
             POSTGRES_POOL_MIN,
             POSTGRES_POOL_MAX,
         ])
-    
+
     # Only validate Couchbase vars if USE_COUCHBASE is True
     if USE_COUCHBASE:
         env_vars.extend([
             COUCHBASE_HOST,
-            COUCHBASE_PORT,
             COUCHBASE_USERNAME,
             COUCHBASE_PASSWORD,
             COUCHBASE_BUCKET,
@@ -202,10 +194,9 @@ def get_couchbase_conf():
     """
     # Import here to avoid circular dependency
     from .clients.couchbase import CouchbaseConf
-    
+
     return CouchbaseConf(
         host=env.parse(COUCHBASE_HOST),
-        port=env.parse(COUCHBASE_PORT),
         username=env.parse(COUCHBASE_USERNAME),
         password=env.parse(COUCHBASE_PASSWORD),
         bucket=env.parse(COUCHBASE_BUCKET),
