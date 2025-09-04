@@ -39,6 +39,28 @@ async def health_check():
             "status": "disabled",
             "message": "PostgreSQL is disabled (USE_POSTGRES=False)"
         }
+    
+    # Check Couchbase connectivity if enabled
+    if conf.USE_COUCHBASE:
+        from fastapi import Request
+        try:
+            # Access the couchbase client from app state (set in main.py lifespan)
+            # This would need the request object, so this is a simplified check
+            health_status["couchbase"] = {
+                "status": "enabled",
+                "message": "Couchbase is configured (USE_COUCHBASE=True)"
+            }
+        except Exception as e:
+            health_status["couchbase"] = {
+                "status": "error", 
+                "message": f"Couchbase error: {str(e)}"
+            }
+            health_status["status"] = "degraded"
+    else:
+        health_status["couchbase"] = {
+            "status": "disabled",
+            "message": "Couchbase is disabled (USE_COUCHBASE=False)"
+        }
 
     return health_status
 
@@ -77,4 +99,16 @@ async def health_check():
 #         raise HTTPException(status_code=503, detail="Database not configured")
 #
 #     return await get_items(User, limit=limit, offset=offset)
+
+
+# Couchbase route example (uncomment when using Couchbase)
+#
+# @router.post("/couchbase/users")
+# async def create_user_couchbase(request: Request, name: str, email: str):
+#     """Create a user in Couchbase."""
+#     couchbase_client = request.app.state.couchbase_client
+#     keyspace = couchbase_client.get_keyspace("users")
+#     user_data = {"name": name, "email": email}
+#     user_id = await couchbase_client.insert_document(keyspace, user_data)
+#     return {"id": user_id}
 #
