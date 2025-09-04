@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -15,7 +15,7 @@ async def root():
     return {"message": "Hello World"}
 
 @router.get("/health")
-async def health_check():
+async def health_check(request: Request):
     """Health check endpoint."""
     health_status = {
         "status": "healthy",
@@ -42,14 +42,13 @@ async def health_check():
     
     # Check Couchbase connectivity if enabled
     if conf.USE_COUCHBASE:
-        from fastapi import Request
         try:
-            # Access the couchbase client from app state (set in main.py lifespan)
-            # This would need the request object, so this is a simplified check
-            health_status["couchbase"] = {
-                "status": "enabled",
-                "message": "Couchbase is configured (USE_COUCHBASE=True)"
-            }
+            couchbase_client = request.app.state.couchbase_client
+            couchbase_health = couchbase_client.health_check()
+            health_status["couchbase"] = couchbase_health
+            
+            if not couchbase_health.get("connected", False):
+                health_status["status"] = "degraded"
         except Exception as e:
             health_status["couchbase"] = {
                 "status": "error", 
