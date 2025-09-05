@@ -93,3 +93,27 @@ async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]
 
 # Type alias for dependency injection
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
+
+
+#### Couchbase ####
+
+def get_couchbase_client(request: Request):
+    """
+    FastAPI dependency that provides the Couchbase client.
+    
+    Usage in routes:
+        from .utils import CouchbaseDB
+        
+        @router.post("/users")
+        async def create_user(user: User, cb: CouchbaseDB):
+            keyspace = cb.get_keyspace("users")
+            return await cb.insert_document(keyspace, user.dict())
+    """
+    if not conf.USE_COUCHBASE:
+        raise HTTPException(status_code=503, detail="Couchbase is not configured")
+    
+    return request.app.state.couchbase_client
+
+
+# Type alias for dependency injection
+CouchbaseDB = Annotated['CouchbaseClient', Depends(get_couchbase_client)]
