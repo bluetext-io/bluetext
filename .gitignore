@@ -1,0 +1,6 @@
+/project
+
+# IDE/Tool directories
+.claude/
+.vscode/
+.idea/
