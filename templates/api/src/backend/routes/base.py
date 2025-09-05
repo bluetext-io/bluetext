@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 
 from ..utils import log
 from .. import conf
@@ -84,12 +84,25 @@ async def health_check(request: Request):
 
 # Couchbase route example (uncomment when using Couchbase)
 #
-# @router.post("/couchbase/users")
-# async def create_user_couchbase(request: Request, name: str, email: str):
-#     """Create a user in Couchbase."""
-#     couchbase_client = request.app.state.couchbase_client
-#     keyspace = couchbase_client.get_keyspace("users")
-#     user_data = {"name": name, "email": email}
-#     user_id = await couchbase_client.insert_document(keyspace, user_data)
-#     return {"id": user_id}
+# from .utils import CouchbaseDB
+# from ..clients.couchbase_models import CouchbaseUser, create_user, get_user, list_users
 #
+# @router.post("/cb/users", response_model=CouchbaseUser)
+# async def create_user_cb(user: CouchbaseUser, cb: CouchbaseDB):
+#     """Create a user in Couchbase."""
+#     user_id = await create_user(cb, user)
+#     user.id = user_id
+#     return user
+#
+# @router.get("/cb/users/{user_id}", response_model=CouchbaseUser)
+# async def get_user_cb(user_id: str, cb: CouchbaseDB):
+#     """Get a user from Couchbase."""
+#     user = await get_user(cb, user_id)
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     return user
+#
+# @router.get("/cb/users", response_model=list[CouchbaseUser])
+# async def list_users_cb(cb: CouchbaseDB, limit: int = 100, offset: int = 0):
+#     """List users from Couchbase."""
+#     return await list_users(cb, limit=limit, offset=offset)
