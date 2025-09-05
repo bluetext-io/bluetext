@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+[[ "${TRACE:-}" == "true" ]] && set -o xtrace
+
+trap 'jobs -p | xargs -r kill' EXIT
+
+readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &> /dev/null && pwd)"
+readonly CACHE="${HOME}/.cache"
+
+. "$(dirname "$0")/lib/pip_install"
+
+cd "$ROOT"
+exec python src/main.py "$@"
+

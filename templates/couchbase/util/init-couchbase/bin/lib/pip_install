@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+(
+  cd "$ROOT" && \
+  pip install -q --cache-dir "$CACHE" --disable-pip-version-check --root-user-action=ignore -r requirements.txt && \
+  if [ -f requirements-dev.txt ]; then
+    pip install -q --cache-dir "$CACHE" --disable-pip-version-check --root-user-action=ignore -r requirements-dev.txt
+  fi
+)
