@@ -23,17 +23,6 @@ class HttpServerConf(BaseModel):
     port: int
     autoreload: bool
 
-class PostgresConf(BaseModel):
-    database: str
-    user: str
-    password: str
-    host: str
-    port: int
-
-class PostgresPoolConf(BaseModel):
-    min_size: int
-    max_size: int
-
 #### Env Vars ####
 
 ## Auth ##
@@ -194,10 +183,13 @@ def get_http_conf() -> HttpServerConf:
         autoreload=env.parse(HTTP_AUTORELOAD),
     )
 
-def get_postgres_conf() -> PostgresConf:
+def get_postgres_conf():
     """Get PostgreSQL connection configuration.
     Only call this if USE_POSTGRES is True.
     """
+    # Import here to avoid circular dependency
+    from .clients.postgres import PostgresConf
+    
     return PostgresConf(
         database=env.parse(POSTGRES_DB),
         user=env.parse(POSTGRES_USER),
@@ -206,10 +198,13 @@ def get_postgres_conf() -> PostgresConf:
         port=env.parse(POSTGRES_PORT),
     )
 
-def get_postgres_pool_conf() -> PostgresPoolConf:
+def get_postgres_pool_conf():
     """Get PostgreSQL connection pool configuration.
     Only call this if USE_POSTGRES is True.
     """
+    # Import here to avoid circular dependency
+    from .clients.postgres import PostgresPoolConf
+    
     return PostgresPoolConf(
         min_size=env.parse(POSTGRES_POOL_MIN),
         max_size=env.parse(POSTGRES_POOL_MAX),
