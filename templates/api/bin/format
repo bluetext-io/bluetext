@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+. "$(dirname "$0")/init"
+
+trap 'jobs -p | xargs -r kill' EXIT
+
+exec uv run ruff check --fix
