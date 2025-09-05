@@ -3,12 +3,15 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-from .utils import log
-from . import conf
-from .db import create_item, get_item, get_items, update_item, delete_item # noqa: F401
+from ..utils import log
+# from .utils import RequestPrincipal # NOTE: uncomment to use auth
+from .. import conf
+from ..db import create_item, get_item, get_items, update_item, delete_item # noqa: F401
 
 logger = log.get_logger(__name__)
 router = APIRouter()
+
+#### Routes ####
 
 @router.get("/")
 async def root():
@@ -88,7 +91,7 @@ async def health_check(request: Request):
 #         raise HTTPException(status_code=404, detail="User not found")
 #     return user
 #
-# @router.get("/users", response_model=List[User])
+# @router.get("/users", response_model=list[User])
 # async def list_users(limit: int = 100, offset: int = 0):
 #     \"\"\"List all users with pagination.\"\"\"
 #     if not conf.USE_POSTGRES:

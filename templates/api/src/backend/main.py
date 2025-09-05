@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from .utils import log
-from .routes import router
+from .routes.base import router
 from . import conf
 
 log.init(conf.get_log_level())
@@ -24,6 +24,13 @@ async def lifespan(app: FastAPI):
         app.state.couchbase_client = CouchbaseClient(couchbase_config)
         await app.state.couchbase_client.initialize()
         await app.state.couchbase_client.init_connection()
+
+    # Initialize auth client if enabled
+    if conf.USE_AUTH:
+        from .utils import auth
+        app.state.auth_client = auth.AuthClient(conf.get_auth_config())
+    else:
+        logger.warning("Authentication is disabled (set USE_AUTH to enable)")
 
     yield
 

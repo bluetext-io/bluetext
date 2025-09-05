@@ -4,8 +4,6 @@ A FastAPI app with support for both PostgreSQL and Couchbase with generic helper
 
 ## 🛠️ Development instructions
 
-### Hook up to a database
-
 **For PostgreSQL:**
 1. Set USE_POSTGRES=true in `src/backend/conf.py`.
 2. Build out the postgres-related routes you want in `src/backend/routes.py` (there are example routes at the bottom).
@@ -13,6 +11,11 @@ A FastAPI app with support for both PostgreSQL and Couchbase with generic helper
 **For Couchbase:**
 1. Set USE_COUCHBASE=true in `src/backend/conf.py`.
 2. Build out the couchbase-related routes you want in `src/backend/routes.py` (there are example routes at the bottom).
+
+**For Auth:**
+1. Set USE_AUTH=true in `src/backend/conf.py`.
+2. Use the `RequestPrincipal` dependency in your routes to protect them.
+3. Optionally, add custom variants of `RequestPrincipal` to filter on roles or similar.
 
 ## 🔧 Configuration
 
