@@ -5,3 +5,20 @@ modules:
     args:
       image: couchbase:enterprise-7.6.6
       data-volume: { id: couchbase-data, type: volume, scope: project }
+  - id: config-manager
+    params:
+    module: polytope/python
+    args:
+      image: gcr.io/arched-inkwell-420116/python:3.11.8-slim-bookworm
+      id: config-couchbase
+      code: { type: host, path: ./project/modules/couchbase/util/init-couchbase }
+      cmd: ./bin/run
+      restart: { policy: on-failure }
+      env:
+        - { name: COUCHBASE_HOST, value: couchbase }
+        - { name: COUCHBASE_USERNAME, value: user }
+        - { name: COUCHBASE_PASSWORD, value: password }
+        - { name: COUCHBASE_MAIN_BUCKET_NAME, value: main }
+      mounts:
+        - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache }}
+        - { path: /root/conf/, source: { type: host, path: ./project/modules/couchbase/conf/components/couchbase }}
