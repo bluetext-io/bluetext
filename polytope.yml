@@ -1,5 +1,2 @@
 include:
   - templates
-  - project/frontend
-  - project/backend
-  - project/modules/postgres
