@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -15,7 +15,7 @@ async def root():
     return {"message": "Hello World"}
 
 @router.get("/health")
-async def health_check():
+async def health_check(request: Request):
     """Health check endpoint."""
     health_status = {
         "status": "healthy",
@@ -24,20 +24,38 @@ async def health_check():
 
     # Check database connectivity if enabled
     if conf.USE_POSTGRES:
-        from .db import is_connected
+        from .db import health_check as db_health_check
 
-        db_connected = await is_connected()
-        health_status["database"] = {
-            "status": "healthy" if db_connected else "unhealthy",
-            "connected": db_connected
-        }
+        db_health = db_health_check()
+        health_status["database"] = db_health
 
-        if not db_connected:
+        if not db_health.get("connected", False):
             health_status["status"] = "degraded"
     else:
         health_status["database"] = {
             "status": "disabled",
             "message": "PostgreSQL is disabled (USE_POSTGRES=False)"
+        }
+    
+    # Check Couchbase connectivity if enabled
+    if conf.USE_COUCHBASE:
+        try:
+            couchbase_client = request.app.state.couchbase_client
+            couchbase_health = couchbase_client.health_check()
+            health_status["couchbase"] = couchbase_health
+            
+            if not couchbase_health.get("connected", False):
+                health_status["status"] = "degraded"
+        except Exception as e:
+            health_status["couchbase"] = {
+                "status": "error", 
+                "message": f"Couchbase error: {str(e)}"
+            }
+            health_status["status"] = "degraded"
+    else:
+        health_status["couchbase"] = {
+            "status": "disabled",
+            "message": "Couchbase is disabled (USE_COUCHBASE=False)"
         }
 
     return health_status
@@ -77,4 +95,16 @@ async def health_check():
 #         raise HTTPException(status_code=503, detail="Database not configured")
 #
 #     return await get_items(User, limit=limit, offset=offset)
+
+
+# Couchbase route example (uncomment when using Couchbase)
+#
+# @router.post("/couchbase/users")
+# async def create_user_couchbase(request: Request, name: str, email: str):
+#     """Create a user in Couchbase."""
+#     couchbase_client = request.app.state.couchbase_client
+#     keyspace = couchbase_client.get_keyspace("users")
+#     user_data = {"name": name, "email": email}
+#     user_id = await couchbase_client.insert_document(keyspace, user_data)
+#     return {"id": user_id}
 #

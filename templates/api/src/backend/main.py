@@ -13,14 +13,27 @@ logger = log.get_logger(__name__)
 async def lifespan(app: FastAPI):
     # Initialize database connection if enabled
     if conf.USE_POSTGRES:
-        from .db import init_db, close_db
+        from .db import init_db, init_connection, close_db
         await init_db()
+        await init_connection()
+    
+    # Initialize Couchbase client if enabled
+    if conf.USE_COUCHBASE:
+        from .clients.couchbase import CouchbaseClient
+        couchbase_config = conf.get_couchbase_conf()
+        app.state.couchbase_client = CouchbaseClient(couchbase_config)
+        await app.state.couchbase_client.initialize()
+        await app.state.couchbase_client.init_connection()
 
     yield
 
     # Clean up database connection if enabled
     if conf.USE_POSTGRES:
         await close_db()
+    
+    # Clean up Couchbase client if enabled
+    if conf.USE_COUCHBASE:
+        await app.state.couchbase_client.close()
 
 app = FastAPI(
     title="Backend API",

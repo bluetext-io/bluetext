@@ -1,0 +1,3 @@
+PyYAML==6.0.1
+couchbase==4.3.2
+kafka-python

@@ -7,7 +7,11 @@ logger = log.get_logger(__name__)
 
 # Set to False if you don't want to use PostgreSQL
 # When False, all database functionality will be disabled
-USE_POSTGRES = True
+USE_POSTGRES = False
+
+# Set to True if you want to use Couchbase
+# When False, couchbase client will not be initialized
+USE_COUCHBASE = False
 
 #### Types ####
 
@@ -90,6 +94,34 @@ POSTGRES_POOL_MAX = EnvVarSpec(
     type=(int, ...)
 )
 
+## Couchbase ##
+
+COUCHBASE_HOST = EnvVarSpec(
+    id="COUCHBASE_HOST",
+    default="couchbase"
+)
+
+COUCHBASE_USERNAME = EnvVarSpec(
+    id="COUCHBASE_USERNAME",
+    default="user"
+)
+
+COUCHBASE_PASSWORD = EnvVarSpec(
+    id="COUCHBASE_PASSWORD",
+    default="password",
+    is_secret=True
+)
+
+COUCHBASE_BUCKET = EnvVarSpec(
+    id="COUCHBASE_BUCKET",
+    default="main"
+)
+
+COUCHBASE_PROTOCOL = EnvVarSpec(
+    id="COUCHBASE_PROTOCOL",
+    default="couchbase"
+)
+
 #### Validation ####
 
 def validate() -> bool:
@@ -109,6 +141,16 @@ def validate() -> bool:
             POSTGRES_PORT,
             POSTGRES_POOL_MIN,
             POSTGRES_POOL_MAX,
+        ])
+
+    # Only validate Couchbase vars if USE_COUCHBASE is True
+    if USE_COUCHBASE:
+        env_vars.extend([
+            COUCHBASE_HOST,
+            COUCHBASE_USERNAME,
+            COUCHBASE_PASSWORD,
+            COUCHBASE_BUCKET,
+            COUCHBASE_PROTOCOL,
         ])
 
     return env.validate(env_vars)
@@ -144,4 +186,19 @@ def get_postgres_pool_conf() -> PostgresPoolConf:
     return PostgresPoolConf(
         min_size=env.parse(POSTGRES_POOL_MIN),
         max_size=env.parse(POSTGRES_POOL_MAX),
+    )
+
+def get_couchbase_conf():
+    """Get Couchbase connection configuration.
+    Only call this if USE_COUCHBASE is True.
+    """
+    # Import here to avoid circular dependency
+    from .clients.couchbase import CouchbaseConf
+
+    return CouchbaseConf(
+        host=env.parse(COUCHBASE_HOST),
+        username=env.parse(COUCHBASE_USERNAME),
+        password=env.parse(COUCHBASE_PASSWORD),
+        bucket=env.parse(COUCHBASE_BUCKET),
+        protocol=env.parse(COUCHBASE_PROTOCOL),
     )

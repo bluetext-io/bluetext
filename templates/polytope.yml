@@ -71,10 +71,16 @@ tools:
 
   add-couchbase:
     info: |
-      Adds a Postgres subproject with associated configuration at the given path.
-      Runs the Postgres server with a basic dev setup (no auth etc).
+      Adds a Couchbase service to the subproject modules/couchbase and configures it.
+      Associated configuration files can be found at modules/config-manager/conf/.
+      Runs the Couchbase server with a basic dev setup.
     await: [scaffold-postgres]
     run:
+      - id: scaffold-config-manager
+        module: polytope/scaffold
+        args:
+          template: templates/config-manager
+          path: "project/modules/config-manager"
       - id: scaffold-couchbase
         module: polytope/scaffold
         args:
@@ -88,8 +94,8 @@ tools:
           (pt/call-module "config-manager" {})
       - id: couchbase
         after:
-          step: scaffold-couchbase
+          - step: scaffold-couchbase
+          - step: scaffold-config-manager
         code: |-
           #pt-clj
           (pt/call-module "couchbase" {})
-
