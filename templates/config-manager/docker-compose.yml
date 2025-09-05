@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  init:
+    # Option 1: Build locally
+    build: .
+    image: cillers-init:latest
+    
+    # Option 2: Use published GCP image (uncomment and replace YOUR_PROJECT_ID)
+    # image: gcr.io/YOUR_PROJECT_ID/cillers-init:latest
+    
+    container_name: cillers-init
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    volumes:
+      # Mount configuration directory
+      - ../../conf/init:/conf/init:ro
+    restart: unless-stopped
+
