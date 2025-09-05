@@ -11,11 +11,14 @@ logger = log.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database connection if enabled
+    # Initialize PostgreSQL client if enabled
     if conf.USE_POSTGRES:
-        from .db import init_db, init_connection, close_db
-        await init_db()
-        await init_connection()
+        from .clients.postgres import PostgresClient
+        postgres_config = conf.get_postgres_conf()
+        pool_config = conf.get_postgres_pool_conf()
+        app.state.postgres_client = PostgresClient(postgres_config, pool_config)
+        await app.state.postgres_client.initialize()
+        await app.state.postgres_client.init_connection()
     
     # Initialize Couchbase client if enabled
     if conf.USE_COUCHBASE:
@@ -34,9 +37,9 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Clean up database connection if enabled
+    # Clean up PostgreSQL client if enabled
     if conf.USE_POSTGRES:
-        await close_db()
+        await app.state.postgres_client.close()
     
     # Clean up Couchbase client if enabled
     if conf.USE_COUCHBASE:

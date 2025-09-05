@@ -1,12 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request
-from typing import List, Optional
-from pydantic import BaseModel
-from datetime import datetime
+from fastapi import APIRouter, Request
 
 from ..utils import log
-# from .utils import RequestPrincipal # NOTE: uncomment to use auth
 from .. import conf
-from ..db import create_item, get_item, get_items, update_item, delete_item # noqa: F401
+# from ..utils import RequestPrincipal # NOTE: uncomment to use auth
 
 logger = log.get_logger(__name__)
 router = APIRouter()
@@ -27,9 +23,8 @@ async def health_check(request: Request):
 
     # Check database connectivity if enabled
     if conf.USE_POSTGRES:
-        from .db import health_check as db_health_check
-
-        db_health = db_health_check()
+        postgres_client = request.app.state.postgres_client
+        db_health = postgres_client.health_check()
         health_status["database"] = db_health
 
         if not db_health.get("connected", False):
@@ -39,19 +34,19 @@ async def health_check(request: Request):
             "status": "disabled",
             "message": "PostgreSQL is disabled (USE_POSTGRES=False)"
         }
-    
+
     # Check Couchbase connectivity if enabled
     if conf.USE_COUCHBASE:
         try:
             couchbase_client = request.app.state.couchbase_client
             couchbase_health = couchbase_client.health_check()
             health_status["couchbase"] = couchbase_health
-            
+
             if not couchbase_health.get("connected", False):
                 health_status["status"] = "degraded"
         except Exception as e:
             health_status["couchbase"] = {
-                "status": "error", 
+                "status": "error",
                 "message": f"Couchbase error: {str(e)}"
             }
             health_status["status"] = "degraded"
@@ -63,41 +58,28 @@ async def health_check(request: Request):
 
     return health_status
 
-# Database route examples (uncomment and modify when you have models)
+# PostgreSQL route example using SQLModel (uncomment when using PostgreSQL)
 #
-# from .db import get_connection, create_item, get_item, get_items
-# from .db.models import User  # Import your models
+# from .utils import DBSession
+# from ..db.models import User, create_user, get_user, get_users
 #
 # @router.post("/users", response_model=User)
-# async def create_user(user: User):
+# async def create_user_route(user: User, session: DBSession):
 #     """Create a new user."""
-#     if not conf.USE_POSTGRES:
-#         raise HTTPException(status_code=503, detail="Database not configured")
-#
-#     try:
-#         return await create_item(user)
-#     except Exception as e:
-#         logger.error(f"Failed to create user: {e}")
-#         raise HTTPException(status_code=500, detail="Failed to create user")
+#     return await create_user(session, user)
 #
 # @router.get("/users/{user_id}", response_model=User)
-# async def read_user(user_id: int):
+# async def get_user_route(user_id: int, session: DBSession):
 #     """Get a user by ID."""
-#     if not conf.USE_POSTGRES:
-#         raise HTTPException(status_code=503, detail="Database not configured")
-#
-#     user = await get_item(User, user_id)
+#     user = await get_user(session, user_id)
 #     if not user:
 #         raise HTTPException(status_code=404, detail="User not found")
 #     return user
 #
 # @router.get("/users", response_model=list[User])
-# async def list_users(limit: int = 100, offset: int = 0):
-#     \"\"\"List all users with pagination.\"\"\"
-#     if not conf.USE_POSTGRES:
-#         raise HTTPException(status_code=503, detail="Database not configured")
-#
-#     return await get_items(User, limit=limit, offset=offset)
+# async def list_users_route(session: DBSession, skip: int = 0, limit: int = 100):
+#     """List all users with pagination."""
+#     return await get_users(session, skip=skip, limit=limit)
 
 
 # Couchbase route example (uncomment when using Couchbase)
