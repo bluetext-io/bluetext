@@ -1,9 +1,0 @@
-environments:
-  - dev
-  - test
-  - staging
-  - prod
-
-config_paths:
-  couchbase: "couchbase.yaml"
-  redpanda: "redpanda.yaml"
