@@ -99,3 +99,38 @@ tools:
         code: |-
           #pt-clj
           (pt/call-module "couchbase" {})
+
+  add-temporal:
+    info: Adds temporal to the project, together with Postgres (if not already present). Runs the temporal server, PostgreSQL and temporal-init.
+    await: [scaffold-postgres, scaffold-temporal]
+    run:
+      - id: scaffold-postgres
+        module: polytope/scaffold
+        args:
+          template: templates/postgres
+          path: "project/modules/postgres"
+      - id: scaffold-temporal
+        module: polytope/scaffold
+        args:
+          template: templates/temporal
+          path: "project/modules/temporal"
+      - id: postgres
+        after:
+          step: scaffold-postgres
+        code: |-
+          #pt-clj
+          (pt/call-module "postgres" {})
+      - id: temporal
+        after:
+          - step: scaffold-temporal
+          - step: scaffold-postgres
+        code: |-
+          #pt-clj
+          (pt/call-module "temporal" {})
+      - id: temporal-ui
+        after:
+          - step: scaffold-postgres
+          - step: scaffold-temporal
+        code: |-
+          #pt-clj
+          (pt/call-module "temporal-ui" {})
