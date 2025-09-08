@@ -27,11 +27,9 @@ tools:
               (pt/call-module {}))
   add-api:
     info: |
-      Creates a backend project (with uv+FastAPI+SQLModel, prepared for Postgres, couchbase and/or temporal) at the supplied path.
-      Always use this when creating a new api service.
-      This also adds and runs a Polytope module that runs the api in dev mode in a container
-      (with full hot reload including for dependency changes) together with an associated service.
-      Another Polytope module is created for adding dependencies in the subproject.
+      Creates and starts an API project (with uv+FastAPI+SQLModel, with configuration for Postgres, Couchbase and/or Temporal) at the supplied path.
+      Always use this when creating a new API service.
+      Runs in dev mode with hot reload in a container. Creates an additional module for dependency management in the subproject.
     await: [scaffold-backend]
     params:
       - id: path
