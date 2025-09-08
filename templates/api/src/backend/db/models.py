@@ -11,7 +11,7 @@ from datetime import datetime
 class User(SQLModel, table=True):
     """User model"""
     __table_args__ = {"extend_existing": True}
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
     name: str
@@ -33,13 +33,13 @@ async def create_user(session: AsyncSession, user: User) -> User:
 
 async def get_user(session: AsyncSession, user_id: int) -> Optional[User]:
     """Get a user by ID"""
-    result = await session.exec(select(User).where(User.id == user_id))
+    result = await session.execute(select(User).where(User.id == user_id))
     return result.first()
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> Optional[User]:
     """Get a user by email"""
-    result = await session.exec(select(User).where(User.email == email))
+    result = await session.execute(select(User).where(User.email == email))
     return result.first()
 
 
@@ -54,23 +54,23 @@ async def get_users(
     if is_active is not None:
         query = query.where(User.is_active == is_active)
     query = query.offset(skip).limit(limit)
-    
-    result = await session.exec(query)
+
+    result = await session.execute(query)
     return result.all()
 
 
 async def update_user(session: AsyncSession, user_id: int, **kwargs) -> Optional[User]:
     """Update a user"""
-    result = await session.exec(select(User).where(User.id == user_id))
+    result = await session.execute(select(User).where(User.id == user_id))
     user = result.first()
-    
+
     if not user:
         return None
-    
+
     for key, value in kwargs.items():
         if hasattr(user, key):
             setattr(user, key, value)
-    
+
     user.updated_at = datetime.utcnow()
     session.add(user)
     await session.commit()
@@ -80,12 +80,12 @@ async def update_user(session: AsyncSession, user_id: int, **kwargs) -> Optional
 
 async def delete_user(session: AsyncSession, user_id: int) -> bool:
     """Delete a user"""
-    result = await session.exec(select(User).where(User.id == user_id))
+    result = await session.execute(select(User).where(User.id == user_id))
     user = result.first()
-    
+
     if not user:
         return False
-    
+
     await session.delete(user)
     await session.commit()
     return True

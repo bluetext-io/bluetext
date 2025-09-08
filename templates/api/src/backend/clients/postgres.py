@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from contextlib import asynccontextmanager
 
 from psycopg_pool import AsyncConnectionPool
-from sqlmodel import SQLModel, create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlmodel import SQLModel
 
 from ..conf import USE_POSTGRES
 
@@ -21,7 +22,7 @@ class PostgresConf:
     password: str
     host: str
     port: int
-    
+
     def get_connection_string(self) -> str:
         """Get psycopg connection string"""
         return (
@@ -31,7 +32,7 @@ class PostgresConf:
             f"host={self.host} "
             f"port={self.port}"
         )
-    
+
     def get_sqlalchemy_url(self) -> str:
         """Get SQLAlchemy URL for SQLModel"""
         return (
@@ -50,13 +51,13 @@ class PostgresPoolConf:
 class PostgresClient:
     """
     Lightweight PostgreSQL client for connection management.
-    
+
     Handles connection pooling, retries, and provides the SQLAlchemy engine
     for SQLModel operations.
-    
+
     Only initializes if USE_POSTGRES is True in configuration.
     """
-    
+
     def __init__(self, config: Optional[PostgresConf] = None, pool_config: Optional[PostgresPoolConf] = None):
         self._config = config
         self._pool_config = pool_config or PostgresPoolConf()
@@ -68,32 +69,32 @@ class PostgresClient:
         self._monitor_task = None
         self._last_connection_error = None
         self._last_error_log_time = 0
-    
+
     async def initialize(self):
         """Initialize the PostgreSQL client"""
         if not self._config:
             raise ValueError("PostgresConf required")
-        
+
         # Create SQLAlchemy engine for SQLModel
-        self._engine = create_engine(self._config.get_sqlalchemy_url())
-        
+        self._engine = create_async_engine(self._config.get_sqlalchemy_url())
+
         self._initialized = True
         logger.info("PostgreSQL client initialized")
-    
+
     async def init_connection(self):
         """Initialize connection with retry loop - call in background task"""
         if not self._initialized:
             return
-        
+
         self._connection_task = asyncio.create_task(self._connection_retry_loop())
-    
+
     async def _connection_retry_loop(self):
         """Retry connection loop that runs in background"""
         while not self._connected:
             try:
                 logger.info("Connecting to PostgreSQL...")
                 self._pool = await self._create_pool()
-                
+
                 # Test the connection
                 async with self._pool.connection() as conn:
                     async with conn.cursor() as cur:
@@ -101,28 +102,28 @@ class PostgresClient:
                         result = await cur.fetchone()
                         if result and result[0] == 1:
                             logger.info("PostgreSQL connection test successful")
-                
+
                 # Create tables using SQLModel
                 await self._create_tables()
-                
+
                 self._connected = True
                 logger.info("PostgreSQL connection established successfully")
-                
+
                 # Start background health monitor
                 self._monitor_task = asyncio.create_task(self._monitor_connection())
                 break
-                
+
             except Exception as e:
                 self._last_connection_error = str(e)
                 current_time = time.time()
-                
+
                 # Log error every 10 seconds
                 if current_time - self._last_error_log_time >= 10:
                     logger.warning(f"PostgreSQL connection failed, retrying: {e}")
                     self._last_error_log_time = current_time
-                
+
                 await asyncio.sleep(1)  # Wait 1 second before retry
-    
+
     async def _create_pool(self) -> AsyncConnectionPool:
         """Create and return a new connection pool"""
         pool = AsyncConnectionPool(
@@ -136,13 +137,13 @@ class PostgresClient:
         )
         await pool.open()  # Open explicitly
         return pool
-    
+
     async def _create_tables(self):
         """Create database tables using SQLModel"""
         try:
             # Import models to register them with SQLModel
             from ..db import models  # noqa: F401
-            
+
             # Try to create all tables
             logger.info("Creating database tables...")
             try:
@@ -159,14 +160,14 @@ class PostgresClient:
                 except Exception as drop_error:
                     logger.exception(f"Failed to drop and recreate tables: {drop_error}")
                     raise
-        
+
         except ImportError as e:
             logger.warning(f"Models not found: {e}")
         except Exception as e:
             logger.exception(f"Failed to create tables: {e}")
             # Don't fail startup, just log the error
             logger.warning("Continuing without creating tables. They may need to be created manually.")
-    
+
     async def _monitor_connection(self):
         """Background task to monitor connection health"""
         while self._pool and self._connected:
@@ -190,18 +191,18 @@ class PostgresClient:
                 except Exception as reconnect_error:
                     logger.error(f"Failed to reconnect: {reconnect_error}")
                     await asyncio.sleep(10)
-    
+
     def _ensure_initialized(self):
         """Ensure client is initialized"""
         if not self._initialized:
             raise RuntimeError("PostgreSQL client not initialized")
-    
+
     async def _ensure_connected(self):
         """Ensure client is connected (blocks until connected)"""
         self._ensure_initialized()
         while not self._connected:
             await asyncio.sleep(0.1)  # Wait for connection
-    
+
     async def close(self):
         """Close the PostgreSQL client"""
         if self._monitor_task:
@@ -211,7 +212,7 @@ class PostgresClient:
             except asyncio.CancelledError:
                 pass
             self._monitor_task = None
-        
+
         if self._connection_task:
             self._connection_task.cancel()
             try:
@@ -219,29 +220,29 @@ class PostgresClient:
             except asyncio.CancelledError:
                 pass
             self._connection_task = None
-        
+
         if self._pool:
             await self._pool.close()
             self._pool = None
             self._connected = False
             self._initialized = False
             logger.info("PostgreSQL client closed")
-    
+
     def get_engine(self):
         """Get SQLAlchemy engine for SQLModel operations"""
         self._ensure_initialized()
         return self._engine
-    
+
     def get_pool(self) -> Optional[AsyncConnectionPool]:
         """Get the current connection pool (for advanced/raw SQL usage)"""
         return self._pool
-    
+
     @asynccontextmanager
     async def get_connection(self):
         """
         Get a raw database connection from the pool.
         For SQLModel operations, use get_engine() instead.
-        
+
         Usage:
             async with client.get_connection() as conn:
                 async with conn.cursor() as cur:
@@ -249,20 +250,20 @@ class PostgresClient:
                     results = await cur.fetchall()
         """
         await self._ensure_connected()
-        
+
         if not self._pool:
             raise RuntimeError("Database pool not available")
-        
+
         async with self._pool.connection() as conn:
             yield conn
-    
+
     async def is_connected(self) -> bool:
         """Check if database is connected and responsive (blocking)"""
         await self._ensure_connected()
-        
+
         if not self._pool:
             return False
-        
+
         try:
             async with self._pool.connection() as conn:
                 async with conn.cursor() as cur:
@@ -271,17 +272,17 @@ class PostgresClient:
                     return result and result[0] == 1
         except Exception:
             return False
-    
+
     def health_check(self) -> Dict[str, Any]:
         """Check if PostgreSQL connection is healthy (non-blocking for health endpoints)"""
         if not self._initialized:
             return {"connected": False, "status": "not_initialized"}
-        
+
         if not self._connected:
             return {
                 "connected": False,
                 "status": "connecting",
                 "last_error": self._last_connection_error
             }
-        
+
         return {"connected": True, "status": "healthy"}
