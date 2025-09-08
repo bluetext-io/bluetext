@@ -35,6 +35,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Authentication is disabled (set USE_AUTH to enable)")
 
+    # Initialize Temporal client if enabled
+    if conf.USE_TEMPORAL:
+        from .clients.temporal import TemporalClient
+        temporal_config = conf.get_temporal_conf()
+        app.state.temporal_client = TemporalClient(temporal_config)
+        await app.state.temporal_client.initialize()
+        await app.state.temporal_client.init_connection()
+
     yield
 
     # Clean up PostgreSQL client if enabled
@@ -44,6 +52,10 @@ async def lifespan(app: FastAPI):
     # Clean up Couchbase client if enabled
     if conf.USE_COUCHBASE:
         await app.state.couchbase_client.close()
+    
+    # Clean up Temporal client if enabled
+    if conf.USE_TEMPORAL:
+        await app.state.temporal_client.close()
 
 app = FastAPI(
     title="Backend API",

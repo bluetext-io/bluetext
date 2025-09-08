@@ -17,6 +17,11 @@ A FastAPI app with support for both PostgreSQL and Couchbase with generic helper
 2. Use the `RequestPrincipal` dependency in your routes to protect them.
 3. Optionally, add custom variants of `RequestPrincipal` to filter on roles or similar.
 
+**For Temporal:**
+1. Set USE_TEMPORAL=true in `src/backend/conf.py`.
+2. Uncomment the example routes in `src/backend/routes/base.py` to test workflows.
+3. Modify the example workflows and activities in `src/backend/clients/temporal.py` for your use case.
+
 ## 🔧 Configuration
 
 All configuration done via env vars using Polytope. Don't worry about it. If you add more environment variables that need to be set, add them to `polytope.yml` as well.

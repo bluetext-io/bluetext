@@ -8,6 +8,7 @@ dependencies = [
     "psycopg[binary,pool]==3.2.9",
     "pyjwt[cryptography]>=2.10.1",
     "sqlmodel==0.0.24",
+    "temporalio>=1.6.0",
     "uvicorn[standard]==0.35.0",
 ]
 

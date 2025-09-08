@@ -34,7 +34,13 @@ modules:
         - { name: HTTP_AUTORELOAD, value: pt.param dev-mode }
         - { name: HTTP_PORT, value: pt.param port }
         - { name: LOG_LEVEL, value: INFO }
+
         - { name: POSTGRES_HOST, value: postgres }
+
+        - { name: TEMPORAL_HOST, value: temporal }
+        - { name: TEMPORAL_PORT, value: 7233 }
+        - { name: TEMPORAL_NAMESPACE, value: default }
+        - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
       mounts:
         - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
   - id: {{ project-name }}-add

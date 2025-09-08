@@ -56,6 +56,30 @@ async def health_check(request: Request):
             "message": "Couchbase is disabled (USE_COUCHBASE=False)"
         }
 
+    # Check Temporal connectivity if enabled
+    if conf.USE_TEMPORAL:
+        try:
+            temporal_client = request.app.state.temporal_client
+            temporal_health = {
+                "connected": temporal_client.is_connected(),
+                "status": "connected" if temporal_client.is_connected() else "disconnected"
+            }
+            health_status["temporal"] = temporal_health
+
+            if not temporal_client.is_connected():
+                health_status["status"] = "degraded"
+        except Exception as e:
+            health_status["temporal"] = {
+                "status": "error",
+                "message": f"Temporal error: {str(e)}"
+            }
+            health_status["status"] = "degraded"
+    else:
+        health_status["temporal"] = {
+            "status": "disabled",
+            "message": "Temporal is disabled (USE_TEMPORAL=False)"
+        }
+
     return health_status
 
 # PostgreSQL route example using SQLModel (uncomment when using PostgreSQL)
@@ -106,3 +130,26 @@ async def health_check(request: Request):
 # async def list_users_cb(cb: CouchbaseDB, limit: int = 100, offset: int = 0):
 #     """List users from Couchbase."""
 #     return await list_users(cb, limit=limit, offset=offset)
+
+
+# Temporal route examples (uncomment when using Temporal)
+#
+# from ..clients.temporal import start_example_workflow, get_workflow_result
+#
+# @router.post("/temporal/workflows/start")
+# async def start_workflow(request: Request, name: str, delay_seconds: int = 2):
+#     """Start an example Temporal workflow."""
+#     temporal_client = request.app.state.temporal_client
+#     workflow_id = await start_example_workflow(temporal_client, name, delay_seconds)
+#     return {"workflow_id": workflow_id, "message": f"Started workflow for {name}"}
+#
+# @router.get("/temporal/workflows/{workflow_id}/result")
+# async def get_workflow_result_route(request: Request, workflow_id: str):
+#     """Get the result of a Temporal workflow."""
+#     temporal_client = request.app.state.temporal_client
+#     try:
+#         result = await get_workflow_result(temporal_client, workflow_id)
+#         return {"workflow_id": workflow_id, "result": result, "status": "completed"}
+#     except Exception as e:
+#         return {"workflow_id": workflow_id, "error": str(e), "status": "error"}
+#

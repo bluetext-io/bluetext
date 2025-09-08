@@ -16,6 +16,9 @@ USE_POSTGRES = False
 # When False, couchbase client will not be initialized
 USE_COUCHBASE = False
 
+# Set to True to enable Temporal
+USE_TEMPORAL = False
+
 #### Types ####
 
 class HttpServerConf(BaseModel):
@@ -120,6 +123,30 @@ COUCHBASE_PROTOCOL = EnvVarSpec(
     default="couchbase"
 )
 
+## Temporal ##
+
+TEMPORAL_HOST = EnvVarSpec(
+    id="TEMPORAL_HOST",
+    default="temporal"
+)
+
+TEMPORAL_PORT = EnvVarSpec(
+    id="TEMPORAL_PORT",
+    parse=int,
+    default="7233",
+    type=(int, ...)
+)
+
+TEMPORAL_NAMESPACE = EnvVarSpec(
+    id="TEMPORAL_NAMESPACE",
+    default="default"
+)
+
+TEMPORAL_TASK_QUEUE = EnvVarSpec(
+    id="TEMPORAL_TASK_QUEUE",
+    default="main-task-queue"
+)
+
 #### Validation ####
 
 def validate() -> bool:
@@ -159,14 +186,21 @@ def validate() -> bool:
             COUCHBASE_PROTOCOL,
         ])
 
+    # Only validate Temporal vars if USE_TEMPORAL is True
+    if USE_TEMPORAL:
+        env_vars.extend([
+            TEMPORAL_HOST,
+            TEMPORAL_PORT,
+            TEMPORAL_NAMESPACE,
+            TEMPORAL_TASK_QUEUE,
+        ])
+
     return env.validate(env_vars)
 
 #### Getters ####
 
 def get_auth_config() -> auth.AuthClientConfig:
-    """Get authentication configuration.
-    Only call this if USE_AUTH is True.
-    """
+    """Get authentication configuration."""
     return auth.AuthClientConfig(
         jwk_url=env.parse(AUTH_OIDC_JWK_URL),
         audience=env.parse(AUTH_OIDC_AUDIENCE),
@@ -184,9 +218,7 @@ def get_http_conf() -> HttpServerConf:
     )
 
 def get_postgres_conf():
-    """Get PostgreSQL connection configuration.
-    Only call this if USE_POSTGRES is True.
-    """
+    """Get PostgreSQL connection configuration."""
     # Import here to avoid circular dependency
     from .clients.postgres import PostgresConf
     
@@ -199,9 +231,7 @@ def get_postgres_conf():
     )
 
 def get_postgres_pool_conf():
-    """Get PostgreSQL connection pool configuration.
-    Only call this if USE_POSTGRES is True.
-    """
+    """Get PostgreSQL connection pool configuration."""
     # Import here to avoid circular dependency
     from .clients.postgres import PostgresPoolConf
     
@@ -211,9 +241,7 @@ def get_postgres_pool_conf():
     )
 
 def get_couchbase_conf():
-    """Get Couchbase connection configuration.
-    Only call this if USE_COUCHBASE is True.
-    """
+    """Get Couchbase connection configuration."""
     # Import here to avoid circular dependency
     from .clients.couchbase import CouchbaseConf
 
@@ -223,4 +251,16 @@ def get_couchbase_conf():
         password=env.parse(COUCHBASE_PASSWORD),
         bucket=env.parse(COUCHBASE_BUCKET),
         protocol=env.parse(COUCHBASE_PROTOCOL),
+    )
+
+def get_temporal_conf():
+    """Get Temporal connection configuration."""
+    # Import here to avoid circular dependency
+    from .clients.temporal import TemporalConf
+
+    return TemporalConf(
+        host=env.parse(TEMPORAL_HOST),
+        port=env.parse(TEMPORAL_PORT),
+        namespace=env.parse(TEMPORAL_NAMESPACE),
+        task_queue=env.parse(TEMPORAL_TASK_QUEUE),
     )
