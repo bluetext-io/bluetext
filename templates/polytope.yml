@@ -16,7 +16,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/frontend
-          path: project/{pt.param path}
+          path: project/modules/{pt.param path}
       - id: frontend
         after:
           step: scaffold-frontend
@@ -40,7 +40,7 @@ tools:
         module: polytope/scaffold
         args:
           template: templates/api
-          path: project/{pt.param path}
+          path: project/modules/{pt.param path}
       - id: backend
         after:
           step: scaffold-backend
