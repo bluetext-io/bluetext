@@ -2,6 +2,15 @@
 
 A FastAPI app with support for both PostgreSQL and Couchbase with generic helper functions for rapid development.
 
+## 🚀 Running the API
+
+**The API is automatically started when you created it using `add-{{ project-name }}`.**
+
+To inspect which steps run, use: `list-services-in-job`
+To view logs, use: `get-logs-in-job{"step":"backend"}`
+
+**Do not manually run the `{{ project-name }}` module - it's already running by calling `add-{{ project-name }}`.**
+
 ## 🛠️ Development instructions
 
 **For PostgreSQL:**
