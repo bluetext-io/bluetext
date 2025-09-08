@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Set the working directory
+WORKDIR="$HOME/development/bluetext"
+
+# Reset polytope.yml
+echo -e "include:\n  - templates" > "$WORKDIR/polytope.yml"
+
+# Clear the projects folder
+rm -rf "$WORKDIR/projects"/*
+echo "Reset complete: polytope.yml updated and projects folder emptied."
+
