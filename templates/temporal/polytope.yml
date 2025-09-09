@@ -14,10 +14,11 @@ modules:
       env:
         - {name: DB, value: postgres12}
         - {name: DB_PORT, value: 5432}
+        - {name: DYNAMIC_CONFIG_FILE, value: /etc/temporal/config/dynamicconfig/development.yaml}
+        - {name: LOG_LEVEL, value: warn}
+        - {name: POSTGRES_PWD, value: password}
         - {name: POSTGRES_SEEDS, value: postgres}
         - {name: POSTGRES_USER, value: postgres}
-        - {name: POSTGRES_PWD, value: password}
-        - {name: DYNAMIC_CONFIG_FILE, value: /etc/temporal/config/dynamicconfig/development.yaml}
         - {name: TEMPORAL_ADDRESS, value: temporal:7233}
         - {name: TEMPORAL_CLI_ADDRESS, value: temporal:7233}
       mounts:
