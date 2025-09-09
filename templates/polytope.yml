@@ -1,11 +1,9 @@
 tools:
   add-frontend:
     info: |
-      Creates a frontend project (with bun+shadcn+react-router v7) at the supplied path.
+      Creates and starts a frontend project (with bun+shadcn+react-router v7) at the supplied path.
       Always use this when creating a new frontend project.
-      This also adds and runs a Polytope module that runs the frontend in dev mode in a container
-      (with full hot reload including for dependency changes) together with an associated service.
-      Another Polytope module is created for adding dependencies in the subproject.
+      Runs in dev mode with hot reload in a container. Creates an additional module for dependency management in the subproject.
     await: [scaffold-frontend]
     params:
       - id: path
@@ -51,7 +49,7 @@ tools:
               (pt/call-module {}))
   add-postgres:
     info: |
-      Adds a Postgres subproject with associated configuration at the given path.
+      Creates and starts a Postgres subproject with associated configuration at the given path.
       Runs the Postgres server with a basic dev setup (no auth etc).
     await: [scaffold-postgres]
     run:
@@ -69,7 +67,7 @@ tools:
 
   add-couchbase:
     info: |
-      Adds a Couchbase service to the subproject modules/couchbase and configures it.
+      Creates and starts a Couchbase service to the subproject modules/couchbase and configures it.
       Associated configuration files can be found at modules/config-manager/conf/.
       Runs the Couchbase server with a basic dev setup.
     await: [scaffold-postgres]
@@ -99,7 +97,7 @@ tools:
           (pt/call-module "couchbase" {})
 
   add-temporal:
-    info: Adds temporal to the project, together with Postgres (if not already present). Runs the temporal server, PostgreSQL and temporal-init.
+    info: Creates and starts a temporal server, together with Postgres (if not already present). Runs the temporal server, PostgreSQL and temporal-init.
     await: [scaffold-postgres, scaffold-temporal]
     run:
       - id: scaffold-postgres
