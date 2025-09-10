@@ -8,3 +8,73 @@ modules:
     module: polytope/postgres!simple
     args:
       data-volume: { id: postgres-data-{{ project-name }}, type: volume, scope: project }
+
+  - id: psql
+    info: Runs the PSQL shell.
+    params:
+      - id: image
+        info: The Docker image to run.
+        name: Image
+        type:
+          - default
+          - docker-image
+          - public.ecr.aws/docker/library/postgres:16.2
+      - id: hostname
+        info: The PostgreSQL hostname to connect to.
+        name: Hostname
+        type: [default, str, postgres]
+      - id: port
+        info: The PostgreSQL port to connect to.
+        name: Port
+        type: [default, int, 5432]
+      - id: database
+        info: The database name.
+        name: Database
+        type: [default, str, postgres]
+      - id: username
+        info: The PostgreSQL user.
+        name: Username
+        type: [default, str, postgres]
+      - id: password
+        info: The password for the given user.
+        name: Password
+        type: [maybe, str]
+      - id: command
+        info: The command to run. If unset, runs an interactive session.
+        name: Command
+        type: [maybe, str]
+    module: polytope/container
+    args:
+      image: pt.param image
+      env:
+        - name: PG_PASSWORD
+          value: pt.param password
+      id: psql
+      cmd: |
+        #pt-clj
+        (->> ["psql"
+              (str "--host=" (:hostname params))
+              (str "--user=" (:username params))
+              (str "--dbname=" (:database params))
+              (when (:command params)
+                (str "--command=" (:command params)))]
+             (remove nil?))
+
+  - id: pgweb
+    info: |
+      Runs pgweb - a web-based PostgreSQL database browser service. 
+      To run this module call the mcp "run" tool with "pgweb" as module argument.
+      To log in provide the postgres module id as hostname, "postgres" as username and no password when running in dev mode.
+      The pgweb service will be available at http://localhost:8081.
+    module: polytope/container
+    args:
+      image: sosedoff/pgweb:0.15.0
+      id: pgweb
+      restart:
+        policy: always
+      services:
+        - id: pgweb
+          ports:
+            - {protocol: http, port: 8081, expose-as: 8081}
+      env:
+        - {name: PGWEB_DATABASE_URL, value: postgres://postgres:password@postgres:5432/postgres?sslmode=disable}
