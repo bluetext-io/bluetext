@@ -1,56 +1,63 @@
 tools:
   add-frontend:
     info: |
-      Creates and starts a frontend project (with bun+shadcn+react-router v7) at the supplied path.
+      Creates and starts a frontend boilerplate subproject at the supplied path.
       Always use this when creating a new frontend project.
-      Runs in dev mode with hot reload in a container. Creates an additional module for dependency management in the subproject.
+      The project uses bun+shadcn+react-router v7.
+      Runs in a container running the subproject handled by Polytope.
+      The environment is set to dev and hot reload is enabled.
+      Defines an additional module for dependency management in the subprojects polytope.yml file.
     await: [scaffold-frontend]
     params:
-      - id: path
-        info: Path to the template to scaffold.
-        type: str
+      - id: service-name
+        info: Name of the service to create and run at <project-root>/modules/<service-name>.
+        type: [default, str, frontend]
     run:
       - id: scaffold-frontend
         module: polytope/scaffold
         args:
           template: templates/frontend
-          path: project/modules/{pt.param path}
+          path: project/modules/{pt.param service-name}
       - id: frontend
         after:
           step: scaffold-frontend
         code: |-
           #pt-clj
-          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
+          (-> (clojure.string/replace (:service-name params) #"[^A-Za-z0-9-]*$" "")
               (clojure.string/replace  #".*/" "")
               (pt/call-module {}))
   add-api:
     info: |
-      Creates and starts an API project (with uv+FastAPI+SQLModel, with configuration for Postgres, Couchbase and/or Temporal) at the supplied path.
+      Creates and starts an API boilerplate subproject.
       Always use this when creating a new API service.
-      Runs in dev mode with hot reload in a container. Creates an additional module for dependency management in the subproject.
-    await: [scaffold-backend]
+      The project uses uv+FastAPI+SQLModel and has configuration options for Postgres, Couchbase and Temporal.
+      Runs in a container handled by Polytope running the subproject.
+      The environment is set to dev and hot reload is enabled.
+      Defines an additional module for dependency management in the subprojects polytope.yml file.
+    await: [scaffold-api]
     params:
-      - id: path
-        info: Path to the template to scaffold.
-        type: str
+      - id: service-name
+        info: Name of the service to create and run at <project-root>/modules/<service-name>.
+        type: [default, str, api]
     run:
-      - id: scaffold-backend
+      - id: scaffold-api
         module: polytope/scaffold
         args:
           template: templates/api
-          path: project/modules/{pt.param path}
-      - id: backend
+          path: project/modules/{pt.param service-name}
+      - id: api
         after:
-          step: scaffold-backend
+          step: scaffold-api
         code: |-
           #pt-clj
-          (-> (clojure.string/replace (:path params) #"[^A-Za-z-0-9]*$" "")
+          (-> (clojure.string/replace (:service-name params) #"[^A-Za-z0-9-]*$" "")
               (clojure.string/replace  #".*/" "")
               (pt/call-module {}))
   add-postgres:
     info: |
-      Creates and starts a Postgres subproject with associated configuration at the given path.
-      Runs the Postgres server with a basic dev setup (no auth etc).
+      Creates and starts a Postgres subproject under <project-root>/modules/postgres.
+      Runs a Postgres server in a container handled by Polytope.
+      The environment is set to run in a basic dev mode with no auth, etc.
     await: [scaffold-postgres]
     run:
       - id: scaffold-postgres
@@ -67,10 +74,11 @@ tools:
 
   add-couchbase:
     info: |
-      Creates and starts a Couchbase service to the subproject modules/couchbase and configures it.
+      Creates and starts a Couchbase subproject under <project-root>/modules/couchbase.
+      Runs a Couchbase server in a container handled by Polytope.
       Associated configuration files can be found at modules/config-manager/conf/.
-      Runs the Couchbase server with a basic dev setup.
-    await: [scaffold-postgres]
+      The environment is set to run in a basic dev mode with no auth, etc.
+    await: [scaffold-couchbase, scaffold-config-manager]
     run:
       - id: scaffold-config-manager
         module: polytope/scaffold
@@ -84,7 +92,7 @@ tools:
           path: "project/modules/couchbase"
       - id: config-manager
         after:
-          step: scaffold-couchbase
+          step: scaffold-config-manager
         code: |-
           #pt-clj
           (pt/call-module "config-manager" {})
@@ -97,7 +105,13 @@ tools:
           (pt/call-module "couchbase" {})
 
   add-temporal:
-    info: Creates and starts a temporal server, together with Postgres (if not already present). Runs the temporal server, PostgreSQL and temporal-init.
+    info: |
+      Creates and starts a
+        - Temporal subproject under <project-root>/modules/temporal.
+        - Postgres subproject under <project-root>/modules/postgres if not already present.
+        - Temporal UI subproject under <project-root>/modules/temporal-ui.
+      Everything runs in containers handled by Polytope.
+      The environment is set to run in a basic dev mode with no auth, etc.
     await: [scaffold-postgres, scaffold-temporal]
     run:
       - id: scaffold-postgres
