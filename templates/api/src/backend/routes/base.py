@@ -134,7 +134,7 @@ async def health_check(request: Request):
 
 # Temporal route examples (uncomment when using Temporal)
 #
-# from ..clients.temporal import start_example_workflow, get_workflow_result
+# from ..workflows.utils import start_example_workflow, get_workflow_result
 #
 # @router.post("/temporal/workflows/start")
 # async def start_workflow(request: Request, name: str, delay_seconds: int = 2):
