@@ -29,7 +29,8 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 **For Temporal:**
 1. Set USE_TEMPORAL=true in `src/backend/conf.py`.
 2. Uncomment the example routes in `src/backend/routes/base.py` to test workflows.
-3. Modify the example workflows and activities in `src/backend/clients/temporal.py` for your use case.
+3. Add your workflows and activities to `src/backend/workflows/` (see examples in `workflows/examples.py`).
+4. Register them in `src/backend/workflows/__init__.py` by adding to the WORKFLOWS and ACTIVITIES lists.
 
 ## 🔧 Configuration
 

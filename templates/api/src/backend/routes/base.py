@@ -134,21 +134,36 @@ async def health_check(request: Request):
 
 # Temporal route examples (uncomment when using Temporal)
 #
-# from ..clients.temporal import start_example_workflow, get_workflow_result
+# import uuid
+# from ..workflows.examples import GreetingWorkflow
 #
-# @router.post("/temporal/workflows/start")
-# async def start_workflow(request: Request, name: str, delay_seconds: int = 2):
-#     """Start an example Temporal workflow."""
+# @router.post("/workflows/greeting")
+# async def start_greeting_workflow(request: Request, name: str, greeting: str = "Hello"):
+#     """Start a greeting workflow."""
 #     temporal_client = request.app.state.temporal_client
-#     workflow_id = await start_example_workflow(temporal_client, name, delay_seconds)
+#     workflow_id = f"greeting-{name}-{uuid.uuid4()}"
+#
+#     # IMPORTANT: For multiple workflow arguments, use args=[...]
+#     handle = await temporal_client.start_workflow(
+#         GreetingWorkflow.run,
+#         args=[name, greeting],  # Multiple args must be passed as a list
+#         id=workflow_id,
+#         task_queue=temporal_client._config.task_queue,
+#     )
 #     return {"workflow_id": workflow_id, "message": f"Started workflow for {name}"}
 #
-# @router.get("/temporal/workflows/{workflow_id}/result")
-# async def get_workflow_result_route(request: Request, workflow_id: str):
-#     """Get the result of a Temporal workflow."""
+# @router.get("/workflows/{workflow_id}/result")
+# async def get_workflow_result(request: Request, workflow_id: str):
+#     """Get the result of a workflow."""
 #     temporal_client = request.app.state.temporal_client
 #     try:
-#         result = await get_workflow_result(temporal_client, workflow_id)
+#         handle = temporal_client.get_workflow_handle(workflow_id)
+#         result = await handle.result()
+#
+#         # Convert Pydantic models to dict for JSON serialization
+#         if hasattr(result, 'model_dump'):
+#             result = result.model_dump()
+#
 #         return {"workflow_id": workflow_id, "result": result, "status": "completed"}
 #     except Exception as e:
 #         return {"workflow_id": workflow_id, "error": str(e), "status": "error"}

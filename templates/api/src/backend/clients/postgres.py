@@ -6,10 +6,8 @@ from dataclasses import dataclass
 from contextlib import asynccontextmanager
 
 from psycopg_pool import AsyncConnectionPool
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
-
-from ..conf import USE_POSTGRES
 
 logger = logging.getLogger(__name__)
 
