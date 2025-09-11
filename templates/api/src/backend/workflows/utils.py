@@ -1,57 +1,53 @@
-import asyncio
-import logging
+"""
+Example helper functions for starting workflows from FastAPI routes.
+
+Usage in routes:
+    from ..workflows.utils import start_greeting_workflow
+    
+    workflow_id = await start_greeting_workflow(
+        request.app.state.temporal_client,
+        "World"
+    )
+"""
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..clients.temporal import TemporalClient
 
-from .examples import ExampleWorkflow
-
-logger = logging.getLogger(__name__)
+from .examples import GreetingWorkflow
 
 
-# Example usage functions for FastAPI routes
-# Coding agents: Create similar functions for your workflows
-
-async def start_example_workflow(temporal_client: "TemporalClient", name: str, delay_seconds: int = 2) -> str:
+async def start_greeting_workflow(
+    temporal_client: "TemporalClient", 
+    name: str
+) -> str:
     """
-    Example function to start the example workflow.
-    Use this pattern in your FastAPI routes.
+    Start a greeting workflow and return its ID.
+    
+    Example of how to start a workflow from a route.
     """
-    if not temporal_client.is_connected():
-        raise RuntimeError("Temporal client not connected")
-    
-    client = temporal_client.get_client()
-    if not client:
-        raise RuntimeError("Temporal client not available")
-    
-    # Start workflow
-    handle = await client.start_workflow(
-        ExampleWorkflow.run,
-        name,
-        delay_seconds,
-        id=f"example-workflow-{name}-{asyncio.get_event_loop().time()}",
-        task_queue=temporal_client._config.task_queue
+    # Start workflow using the client's delegation method
+    # Args: workflow.run method, *args_for_workflow, id, task_queue
+    handle = await temporal_client.start_workflow(
+        GreetingWorkflow.run,
+        name,  # This gets passed to GreetingWorkflow.run
+        id=f"greeting-{name}-{id(name)}",  # Unique workflow ID
+        task_queue=temporal_client._config.task_queue,
     )
-    
-    logger.info(f"Started workflow with ID: {handle.id}")
     return handle.id
 
 
-async def get_workflow_result(temporal_client: "TemporalClient", workflow_id: str) -> str:
+async def get_workflow_result(
+    temporal_client: "TemporalClient", 
+    workflow_id: str
+) -> str:
     """
-    Example function to get workflow result.
-    Use this pattern in your FastAPI routes.
+    Get the result of a workflow by ID.
+    
+    Example of how to retrieve workflow results.
     """
-    if not temporal_client.is_connected():
-        raise RuntimeError("Temporal client not connected")
-    
-    client = temporal_client.get_client()
-    if not client:
-        raise RuntimeError("Temporal client not available")
-    
-    # Get workflow handle and result
-    handle = client.get_workflow_handle(workflow_id)
-    result = await handle.result()
-    
-    return result
+    # Get handle to existing workflow
+    handle = temporal_client.get_workflow_handle(workflow_id)
+    # Wait for and return the result
+    return await handle.result()

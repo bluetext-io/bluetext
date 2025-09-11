@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Optional, List, Any
 
@@ -49,6 +50,7 @@ class TemporalClient:
         self._connection_task = None
         self._last_connection_error = None
         self._last_error_log_time = 0
+        self._activity_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="temporal-activity")
 
     async def initialize(self):
         """Initialize Temporal client and start connection retry loop in background"""
@@ -66,9 +68,6 @@ class TemporalClient:
                     self._config.get_target_host(),
                     namespace=self._config.namespace
                 )
-
-                # Test the connection
-                await self._client.service_client.get_system_info()
 
                 logger.info("Connected to Temporal server")
 
@@ -100,7 +99,8 @@ class TemporalClient:
             self._client,
             task_queue=self._config.task_queue,
             workflows=self._workflows,
-            activities=self._activities
+            activities=self._activities,
+            activity_executor=self._activity_executor
         )
 
         # Start worker in background task
@@ -127,10 +127,8 @@ class TemporalClient:
             except asyncio.CancelledError:
                 pass
 
-        # Close client
-        if self._client:
-            await self._client.close()
-            self._connected = False
+        # Shutdown activity executor
+        self._activity_executor.shutdown(wait=True)
 
         logger.info("Temporal client closed")
 
@@ -142,4 +140,22 @@ class TemporalClient:
         """Check if connected to Temporal server"""
         return self._connected
 
+    # Delegation methods for common workflow operations
 
+    async def start_workflow(self, *args, **kwargs):
+        """Start a workflow, delegating to underlying client"""
+        if not self._connected or not self._client:
+            raise RuntimeError("Temporal client not connected")
+        return await self._client.start_workflow(*args, **kwargs)
+
+    def get_workflow_handle(self, *args, **kwargs):
+        """Get workflow handle, delegating to underlying client"""
+        if not self._connected or not self._client:
+            raise RuntimeError("Temporal client not connected")
+        return self._client.get_workflow_handle(*args, **kwargs)
+
+    async def execute_workflow(self, *args, **kwargs):
+        """Execute a workflow and wait for result, delegating to underlying client"""
+        if not self._connected or not self._client:
+            raise RuntimeError("Temporal client not connected")
+        return await self._client.execute_workflow(*args, **kwargs)
