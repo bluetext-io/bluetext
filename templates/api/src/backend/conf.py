@@ -19,6 +19,9 @@ USE_COUCHBASE = False
 # Set to True to enable Temporal
 USE_TEMPORAL = False
 
+# Set to True to enable Twilio SMS functionality
+USE_TWILIO = False
+
 #### Types ####
 
 class HttpServerConf(BaseModel):
@@ -46,6 +49,14 @@ HTTP_PORT = EnvVarSpec(id="HTTP_PORT", default="8000")
 
 HTTP_AUTORELOAD = EnvVarSpec(
     id="HTTP_AUTORELOAD",
+    parse=lambda x: x.lower() == "true",
+    default="false",
+    type=(bool, ...),
+)
+
+HTTP_EXPOSE_ERRORS = EnvVarSpec(
+    id="HTTP_EXPOSE_ERRORS",
+    default="false",
     parse=lambda x: x.lower() == "true",
     default="false",
     type=(bool, ...),
@@ -147,13 +158,32 @@ TEMPORAL_TASK_QUEUE = EnvVarSpec(
     default="main-task-queue"
 )
 
+## Twilio ##
+
+TWILIO_ACCOUNT_SID = EnvVarSpec(
+    id="TWILIO_ACCOUNT_SID",
+    is_optional=True
+)
+
+TWILIO_AUTH_TOKEN = EnvVarSpec(
+    id="TWILIO_AUTH_TOKEN",
+    is_optional=True,
+    is_secret=True
+)
+
+TWILIO_FROM_PHONE_NUMBER = EnvVarSpec(
+    id="TWILIO_FROM_PHONE_NUMBER",
+    is_optional=True
+)
+
 #### Validation ####
 
 def validate() -> bool:
     env_vars = [
-        LOG_LEVEL,
-        HTTP_PORT,
         HTTP_AUTORELOAD,
+        HTTP_EXPOSE_ERRORS,
+        HTTP_PORT,
+        LOG_LEVEL,
     ]
 
     # Only validate auth vars if USE_AUTH is True
@@ -195,6 +225,14 @@ def validate() -> bool:
             TEMPORAL_TASK_QUEUE,
         ])
 
+    # Only validate Twilio vars if USE_TWILIO is True
+    if USE_TWILIO:
+        env_vars.extend([
+            TWILIO_ACCOUNT_SID,
+            TWILIO_AUTH_TOKEN,
+            TWILIO_FROM_PHONE_NUMBER,
+        ])
+
     return env.validate(env_vars)
 
 #### Getters ####
@@ -206,6 +244,9 @@ def get_auth_config() -> auth.AuthClientConfig:
         audience=env.parse(AUTH_OIDC_AUDIENCE),
         issuer=env.parse(AUTH_OIDC_ISSUER),
     )
+
+def get_http_expose_errors() -> str:
+    return env.parse(HTTP_EXPOSE_ERRORS)
 
 def get_log_level() -> str:
     return env.parse(LOG_LEVEL)
@@ -263,4 +304,15 @@ def get_temporal_conf():
         port=env.parse(TEMPORAL_PORT),
         namespace=env.parse(TEMPORAL_NAMESPACE),
         task_queue=env.parse(TEMPORAL_TASK_QUEUE),
+    )
+
+def get_twilio_conf():
+    """Get Twilio configuration."""
+    # Import here to avoid circular dependency
+    from .clients.twilio import TwilioConf
+
+    return TwilioConf(
+        account_sid=env.parse(TWILIO_ACCOUNT_SID),
+        auth_token=env.parse(TWILIO_AUTH_TOKEN),
+        from_phone_number=env.parse(TWILIO_FROM_PHONE_NUMBER),
     )

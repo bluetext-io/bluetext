@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
         app.state.postgres_client = PostgresClient(postgres_config, pool_config)
         await app.state.postgres_client.initialize()
         await app.state.postgres_client.init_connection()
-    
+
     # Initialize Couchbase client if enabled
     if conf.USE_COUCHBASE:
         from .clients.couchbase import CouchbaseClient
@@ -43,25 +43,38 @@ async def lifespan(app: FastAPI):
         await app.state.temporal_client.initialize()
         await app.state.temporal_client.init_connection()
 
+    # Initialize Twilio client if enabled
+    if conf.USE_TWILIO:
+        from .clients.twilio import TwilioClient
+        twilio_config = conf.get_twilio_conf()
+        app.state.twilio_client = TwilioClient(twilio_config)
+        await app.state.twilio_client.initialize()
+        await app.state.twilio_client.init_connection()
+
     yield
 
     # Clean up PostgreSQL client if enabled
     if conf.USE_POSTGRES:
         await app.state.postgres_client.close()
-    
+
     # Clean up Couchbase client if enabled
     if conf.USE_COUCHBASE:
         await app.state.couchbase_client.close()
-    
+
     # Clean up Temporal client if enabled
     if conf.USE_TEMPORAL:
         await app.state.temporal_client.close()
+
+    # Clean up Twilio client if enabled
+    if conf.USE_TWILIO:
+        await app.state.twilio_client.close()
 
 app = FastAPI(
     title="Backend API",
     version="0.1.0",
     docs_url="/docs",
     lifespan=lifespan
+    debug=conf.get_http_expose_errors(),
 )
 
 app.include_router(router)

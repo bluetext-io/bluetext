@@ -31,6 +31,12 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 2. Uncomment the example routes in `src/backend/routes/base.py` to test workflows.
 3. Modify the example workflows and activities in `src/backend/clients/temporal.py` for your use case.
 
+**For Twilio SMS:**
+1. Set USE_TWILIO=true in `src/backend/conf.py`.
+2. Set the required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_PHONE_NUMBER.
+3. Uncomment the SMS routes in `src/backend/routes/base.py` to enable SMS functionality.
+4. Optionally combine with Temporal workflows for delayed/scheduled SMS messages.
+
 ## 🔧 Configuration
 
 All configuration done via env vars using Polytope. Don't worry about it. If you add more environment variables that need to be set, add them to `polytope.yml` as well.

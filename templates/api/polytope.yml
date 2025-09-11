@@ -31,6 +31,7 @@ modules:
           ? [{ id: "{{ project-name }}", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
           : null;
       env:
+        - { name: HTTP_EXPOSE_ERRORS, value: pt.param dev-mode }
         - { name: HTTP_AUTORELOAD, value: pt.param dev-mode }
         - { name: HTTP_PORT, value: pt.param port }
         - { name: LOG_LEVEL, value: INFO }
