@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
         app.state.postgres_client = PostgresClient(postgres_config, pool_config)
         await app.state.postgres_client.initialize()
         await app.state.postgres_client.init_connection()
-    
+
     # Initialize Couchbase client if enabled
     if conf.USE_COUCHBASE:
         from .clients.couchbase import CouchbaseClient
@@ -52,11 +52,11 @@ async def lifespan(app: FastAPI):
     # Clean up PostgreSQL client if enabled
     if conf.USE_POSTGRES:
         await app.state.postgres_client.close()
-    
+
     # Clean up Couchbase client if enabled
     if conf.USE_COUCHBASE:
         await app.state.couchbase_client.close()
-    
+
     # Clean up Temporal client if enabled
     if conf.USE_TEMPORAL:
         await app.state.temporal_client.close()

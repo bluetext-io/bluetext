@@ -1,24 +1,21 @@
 # Workflow and Activity Registry
 # 
-# Coding agents should import their workflows and activities here
-# to register them with the Temporal client.
+# Replace the example imports and registrations below with your own
+# workflows and activities to register them with the Temporal client.
 #
 # Example:
 # from .my_workflows import MyWorkflow, my_activity
 # 
-# Then add them to the lists below:
+# Then add them to the WORKFLOWS and ACTIVITIES lists
 
-from .examples import ExampleWorkflow, example_activity, example_async_activity
+from .examples import GreetingWorkflow, compose_greeting
 
-# Register your workflows here
-# Coding agents: Add your workflow classes to this list
+# Replace with your workflow classes
 WORKFLOWS = [
-    ExampleWorkflow,
+    GreetingWorkflow,
 ]
 
-# Register your activities here  
-# Coding agents: Add your activity functions to this list
+# Replace with your activity functions
 ACTIVITIES = [
-    example_activity,
-    example_async_activity,
+    compose_greeting,
 ]
