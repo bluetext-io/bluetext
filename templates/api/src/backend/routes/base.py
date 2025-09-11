@@ -1,4 +1,10 @@
-from fastapi import APIRouter, Request, HTTPException
+import asyncio
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Optional, List
+from fastapi import APIRouter, Request, HTTPException, Query
 
 from ..utils import log
 from .. import conf
@@ -7,6 +13,27 @@ from .. import conf
 logger = log.get_logger(__name__)
 router = APIRouter()
 
+#### Utilities ####
+
+def get_app_version() -> str:
+    """Read version from pyproject.toml."""
+    try:
+        # Look for pyproject.toml from the current file up to project root
+        current_path = Path(__file__).resolve()
+        for parent in [current_path] + list(current_path.parents):
+            pyproject_path = parent / "pyproject.toml"
+            if pyproject_path.exists():
+                content = pyproject_path.read_text()
+                for line in content.split('\n'):
+                    if line.strip().startswith('version = '):
+                        # Extract version from 'version = "0.1.0"'
+                        return line.split('=')[1].strip().strip('"\'')
+                break
+        return "unknown"
+    except Exception as e:
+        logger.warning(f"Failed to read version from pyproject.toml: {e}")
+        return "unknown"
+
 #### Routes ####
 
 @router.get("/")
@@ -14,94 +41,145 @@ async def root():
     return {"message": "Hello World"}
 
 @router.get("/health")
-async def health_check(request: Request):
-    """Health check endpoint."""
+async def health_check(
+    request: Request,
+    quick: bool = Query(False, description="Return basic status only"),
+    services: Optional[str] = Query(None, description="Comma-separated list of services to check (postgres,couchbase,temporal,twilio)"),
+    timeout: float = Query(2.0, description="Timeout in seconds for health checks", ge=0.1, le=10.0)
+):
+    """Fast health check endpoint optimized for LLMs and automated clients."""
+    start_time = time.time()
+
     health_status = {
         "status": "healthy",
         "service": "backend",
+        "timestamp": int(start_time),
     }
 
-    # Check database connectivity if enabled
-    if conf.USE_POSTGRES:
-        postgres_client = request.app.state.postgres_client
-        db_health = postgres_client.health_check()
-        health_status["database"] = db_health
-
-        if not db_health.get("connected", False):
-            health_status["status"] = "degraded"
-    else:
-        health_status["database"] = {
-            "status": "disabled",
-            "message": "PostgreSQL is disabled (USE_POSTGRES=False)"
+    # Add more extensive response if error surfacing is enabled
+    if conf.get_http_expose_errors():
+        health_status["dev_info"] = {
+            "version": get_app_version(),
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "features": {
+                "postgres": conf.USE_POSTGRES,
+                "couchbase": conf.USE_COUCHBASE,
+                "temporal": conf.USE_TEMPORAL,
+                "twilio": conf.USE_TWILIO,
+                "auth": conf.USE_AUTH,
+            },
+            "configuration": {
+                "log_level": conf.get_log_level(),
+                "http_autoreload": conf.env.parse(conf.HTTP_AUTORELOAD),
+            }
         }
 
-    # Check Couchbase connectivity if enabled
-    if conf.USE_COUCHBASE:
-        try:
+    # Parse services filter
+    services_to_check = None
+    if services:
+        services_to_check = [s.strip().lower() for s in services.split(",")]
+
+    # Quick mode - just return basic status
+    if quick:
+        health_status["mode"] = "quick"
+        health_status["response_time_ms"] = round((time.time() - start_time) * 1000, 2)
+        return health_status
+
+    await asyncio.wait_for(
+        _check_all_services(request, health_status, services_to_check),
+        timeout=timeout
+    )
+
+    # Add response time
+    health_status["response_time_ms"] = round((time.time() - start_time) * 1000, 2)
+    return health_status
+
+
+async def _check_all_services(request: Request, health_status: dict, services_filter: Optional[List[str]]):
+    """Check all enabled services with proper error handling."""
+
+    # Check PostgreSQL if requested
+    if not services_filter or "postgres" in services_filter:
+        if conf.USE_POSTGRES:
+            postgres_client = request.app.state.postgres_client
+            db_health = postgres_client.health_check()
+            health_status["postgres"] = db_health
+            if not db_health.get("connected", False):
+                health_status["status"] = "degraded"
+        else:
+            health_status["postgres"] = {
+                "status": "disabled",
+                "message": "PostgreSQL is disabled (USE_POSTGRES=False)"
+            }
+
+    # Check Couchbase if requested
+    if not services_filter or "couchbase" in services_filter:
+        if conf.USE_COUCHBASE:
             couchbase_client = request.app.state.couchbase_client
             couchbase_health = couchbase_client.health_check()
             health_status["couchbase"] = couchbase_health
-
             if not couchbase_health.get("connected", False):
                 health_status["status"] = "degraded"
-        except Exception as e:
+        else:
             health_status["couchbase"] = {
-                "status": "error",
-                "message": f"Couchbase error: {str(e)}"
+                "status": "disabled",
+                "message": "Couchbase is disabled (USE_COUCHBASE=False)"
             }
-            health_status["status"] = "degraded"
-    else:
-        health_status["couchbase"] = {
-            "status": "disabled",
-            "message": "Couchbase is disabled (USE_COUCHBASE=False)"
-        }
 
-    # Check Temporal connectivity if enabled
-    if conf.USE_TEMPORAL:
-        try:
+    # Check Temporal if requested (with timeout protection)
+    if not services_filter or "temporal" in services_filter:
+        if conf.USE_TEMPORAL:
             temporal_client = request.app.state.temporal_client
-            temporal_health = {
-                "connected": temporal_client.is_connected(),
-                "status": "connected" if temporal_client.is_connected() else "disconnected"
-            }
+            # Use health_check if available, otherwise use is_connected with timeout
+            if hasattr(temporal_client, 'health_check'):
+                temporal_health = temporal_client.health_check()
+            else:
+                # Wrap potentially blocking call in timeout
+                try:
+                    is_connected = await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(
+                            None, temporal_client.is_connected
+                        ),
+                        timeout=0.5
+                    )
+                    temporal_health = {
+                        "connected": is_connected,
+                        "status": "connected" if is_connected else "disconnected"
+                    }
+                except asyncio.TimeoutError:
+                    temporal_health = {
+                        "connected": False,
+                        "status": "timeout",
+                        "message": "Connection check timed out"
+                    }
+
             health_status["temporal"] = temporal_health
-
-            if not temporal_client.is_connected():
+            if not temporal_health.get("connected", False):
                 health_status["status"] = "degraded"
-        except Exception as e:
+        else:
             health_status["temporal"] = {
-                "status": "error",
-                "message": f"Temporal error: {str(e)}"
+                "status": "disabled",
+                "message": "Temporal is disabled (USE_TEMPORAL=False)"
             }
-            health_status["status"] = "degraded"
-    else:
-        health_status["temporal"] = {
-            "status": "disabled",
-            "message": "Temporal is disabled (USE_TEMPORAL=False)"
-        }
 
-    # Check Twilio connectivity if enabled
-    if conf.USE_TWILIO:
-        try:
+    # Check Twilio if requested
+    if not services_filter or "twilio" in services_filter:
+        if conf.USE_TWILIO:
             twilio_client = request.app.state.twilio_client
-            twilio_health = {
-                "connected": True,
-                "status": "connected"
-            }
+            # Use health_check if available
+            if hasattr(twilio_client, 'health_check'):
+                twilio_health = twilio_client.health_check()
+            else:
+                twilio_health = {
+                    "connected": True,
+                    "status": "connected"
+                }
             health_status["twilio"] = twilio_health
-        except Exception as e:
+        else:
             health_status["twilio"] = {
-                "status": "error",
-                "message": f"Twilio error: {str(e)}"
+                "status": "disabled",
+                "message": "Twilio is disabled (USE_TWILIO=False)"
             }
-            health_status["status"] = "degraded"
-    else:
-        health_status["twilio"] = {
-            "status": "disabled",
-            "message": "Twilio is disabled (USE_TWILIO=False)"
-        }
-
-    return health_status
 
 # PostgreSQL route example using SQLModel (uncomment when using PostgreSQL)
 #
@@ -181,7 +259,7 @@ async def health_check(request: Request):
 # 1. Set USE_TWILIO = True in conf.py
 # 2. Set environment variables:
 #    - TWILIO_ACCOUNT_SID: Your Twilio Account SID
-#    - TWILIO_AUTH_TOKEN: Your Twilio Auth Token  
+#    - TWILIO_AUTH_TOKEN: Your Twilio Auth Token
 #    - TWILIO_FROM_PHONE_NUMBER: Your Twilio phone number (e.g., '+15551234567')
 # 3. Uncomment the routes below
 #
@@ -197,11 +275,11 @@ async def health_check(request: Request):
 #     """Send an SMS message via Twilio."""
 #     if not conf.USE_TWILIO:
 #         raise HTTPException(status_code=503, detail="Twilio SMS is disabled")
-#     
+#
 #     try:
 #         twilio_client = request.app.state.twilio_client
 #         result = await twilio_client.send_sms(
-#             sms_request.to_phone_number, 
+#             sms_request.to_phone_number,
 #             sms_request.message
 #         )
 #         return {
@@ -225,8 +303,8 @@ async def health_check(request: Request):
 #     if not conf.USE_TWILIO:
 #         raise HTTPException(status_code=503, detail="Twilio SMS is disabled")
 #     if not conf.USE_TEMPORAL:
-#         raise HTTPException(status_code=503, detail="Temporal is disabled") 
-#     
+#         raise HTTPException(status_code=503, detail="Temporal is disabled")
+#
 #     # This would require implementing a Temporal workflow for SMS
 #     # Example workflow implementation would go in clients/temporal.py:
 #     #
@@ -240,10 +318,10 @@ async def health_check(request: Request):
 #     #             args=[phone_number, message],
 #     #             start_to_close_timeout=timedelta(minutes=1)
 #     #         )
-#     
+#
 #     temporal_client = request.app.state.temporal_client
 #     workflow_id = f"delayed-sms-{uuid.uuid4()}"
-#     
+#
 #     # Start workflow (implementation would depend on your Temporal setup)
 #     # handle = await temporal_client.client.start_workflow(
 #     #     DelayedSMSWorkflow.run,
@@ -251,7 +329,7 @@ async def health_check(request: Request):
 #     #     id=workflow_id,
 #     #     task_queue=temporal_client.config.task_queue
 #     # )
-#     
+#
 #     return {
 #         "workflow_id": workflow_id,
 #         "message": f"Delayed SMS scheduled for {delay_minutes} minutes",
