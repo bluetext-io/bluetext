@@ -16,7 +16,10 @@ tools:
       - id: scaffold-frontend
         module: polytope/scaffold
         args:
-          template: templates/frontend
+          template:
+            type: repo
+            repo: "#pt-clj pt/module-repo-ref"
+            path: frontend
           path: project/modules/{pt.param service-name}
       - id: frontend
         after:
@@ -43,9 +46,12 @@ tools:
       - id: scaffold-api
         module: polytope/scaffold
         args:
-          template: templates/api
+          template:
+            type: repo
+            repo: "#pt-clj pt/module-repo-ref"
+            path: api
           path: project/modules/{pt.param service-name}
-      - id: api
+      - id: backend
         after:
           step: scaffold-api
         code: |-
@@ -63,7 +69,10 @@ tools:
       - id: scaffold-postgres
         module: polytope/scaffold
         args:
-          template: templates/postgres
+          template:
+            type: repo
+            repo: "#pt-clj pt/module-repo-ref"
+            path: postgres
           path: "project/modules/postgres"
       - id: postgres
         after:
@@ -83,12 +92,18 @@ tools:
       - id: scaffold-config-manager
         module: polytope/scaffold
         args:
-          template: templates/config-manager
+          template:
+            type: repo
+            repo: "#pt-clj pt/module-repo-ref"
+            path: config-manager
           path: "project/modules/config-manager"
       - id: scaffold-couchbase
         module: polytope/scaffold
         args:
-          template: templates/couchbase
+          template:
+            type: repo
+            repo: "#pt-clj pt/module-repo-ref"
+            path: couchbase
           path: "project/modules/couchbase"
       - id: config-manager
         after:
@@ -117,12 +132,18 @@ tools:
       - id: scaffold-postgres
         module: polytope/scaffold
         args:
-          template: templates/postgres
+          template:
+            type: repo
+            repo: "#pt-clj pt/module-repo-ref"
+            path: postgres
           path: "project/modules/postgres"
       - id: scaffold-temporal
         module: polytope/scaffold
         args:
-          template: templates/temporal
+          template:
+            type: repo
+            repo: "#pt-clj pt/module-repo-ref"
+            path: temporal
           path: "project/modules/temporal"
       - id: postgres
         after:
