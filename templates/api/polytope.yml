@@ -18,6 +18,9 @@ modules:
       - id: id
         info: The container ID to use.
         type: [default, str, {{ project-name }}]
+      - id: create
+        info: Whether to create the container.
+        type: [default, [enum, never, always, when-missing], when-missing]
     args:
       id: pt.param id
       image: astral/uv:python3.13-bookworm-slim
@@ -54,3 +57,4 @@ modules:
       id: {{ project-name }}-add
       restart-policy: on-failure
       cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
+      create: always
