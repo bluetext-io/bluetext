@@ -78,3 +78,4 @@ modules:
             - {protocol: http, port: 8081, expose-as: 8081}
       env:
         - {name: PGWEB_DATABASE_URL, value: postgres://postgres:password@postgres:5432/postgres?sslmode=disable}
+      create: when-missing

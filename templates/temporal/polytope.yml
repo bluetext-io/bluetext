@@ -24,6 +24,7 @@ modules:
       mounts:
         - path: /etc/temporal/config
           source: {type: volume, scope: project, id: temporal-config}
+      create: when-missing
   - id: temporal-ui
     info: "Runs the Temporal Web UI"
     module: polytope/container
@@ -39,3 +40,4 @@ modules:
       env:
         - {name: TEMPORAL_ADDRESS, value: temporal:7233}
         - {name: TEMPORAL_UI_PORT, value: 8233}
+      create: when-missing

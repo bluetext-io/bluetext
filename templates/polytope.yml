@@ -74,6 +74,7 @@ tools:
             repo: "#pt-clj pt/module-repo-ref"
             path: postgres
           path: "project/modules/postgres"
+          on-conflict: skip
       - id: postgres
         after:
           step: scaffold-postgres
@@ -97,6 +98,7 @@ tools:
             repo: "#pt-clj pt/module-repo-ref"
             path: config-manager
           path: "project/modules/config-manager"
+          on-conflict: skip
       - id: scaffold-couchbase
         module: polytope/scaffold
         args:
@@ -105,6 +107,7 @@ tools:
             repo: "#pt-clj pt/module-repo-ref"
             path: couchbase
           path: "project/modules/couchbase"
+          on-conflict: skip
       - id: config-manager
         after:
           step: scaffold-config-manager
@@ -137,6 +140,7 @@ tools:
             repo: "#pt-clj pt/module-repo-ref"
             path: postgres
           path: "project/modules/postgres"
+          on-conflict: skip
       - id: scaffold-temporal
         module: polytope/scaffold
         args:
@@ -145,6 +149,7 @@ tools:
             repo: "#pt-clj pt/module-repo-ref"
             path: temporal
           path: "project/modules/temporal"
+          on-conflict: skip
       - id: postgres
         after:
           step: scaffold-postgres

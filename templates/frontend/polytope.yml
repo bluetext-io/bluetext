@@ -18,9 +18,13 @@ modules:
       - id: id
         info: The container ID to use.
         type: [default, str, backend]
+      - id: create
+        info: Whether to create the container.
+        type: [default, [enum, never, always, when-missing], when-missing]
     args:
       id: {{ project-name }}
       image: oven/bun:alpine
+      create: pt.param create
       code: { type: repo, path: . }
       cmd: pt.param cmd
       restart:
@@ -49,3 +53,4 @@ modules:
       id: {{ project-name }}-add
       restart-policy: on-failure
       cmd: '#pt-js "bun add " + params.packages.replace(/[\s,]+/g, " ")'
+      create: always
