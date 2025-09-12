@@ -16,6 +16,15 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 **For PostgreSQL:**
 1. Set USE_POSTGRES=true in `src/backend/conf.py`.
 2. Build out the postgres-related routes you want in `src/backend/routes.py` (there are example routes at the bottom).
+3. **IMPORTANT**: Always use `DBSession` from `routes/utils.py` for database access in routes:
+   ```python
+   from .utils import DBSession
+
+   @router.post("/users")
+   async def create_user(user: User, session: DBSession):
+       # session is automatically injected and managed
+       return await create_user(session, user)
+   ```
 
 **For Couchbase:**
 1. Set USE_COUCHBASE=true in `src/backend/conf.py`.

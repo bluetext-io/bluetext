@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request, HTTPException
 from ..utils import log
 from .. import conf
 # from ..utils import RequestPrincipal # NOTE: uncomment to use auth
+# from ..utils import DBSession # NOTE: uncomment to use postgres
 
 logger = log.get_logger(__name__)
 router = APIRouter()

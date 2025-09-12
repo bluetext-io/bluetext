@@ -14,11 +14,18 @@ async def lifespan(app: FastAPI):
     # Initialize PostgreSQL client if enabled
     if conf.USE_POSTGRES:
         from .clients.postgres import PostgresClient
+        from sqlmodel import SQLModel
+        # Import models to register them with SQLModel
+        from .db import models  # noqa: F401
+
         postgres_config = conf.get_postgres_conf()
         pool_config = conf.get_postgres_pool_conf()
         app.state.postgres_client = PostgresClient(postgres_config, pool_config)
         await app.state.postgres_client.initialize()
         await app.state.postgres_client.init_connection()
+
+        # Create tables after connection is established
+        await app.state.postgres_client.create_tables(SQLModel.metadata)
 
     # Initialize Couchbase client if enabled
     if conf.USE_COUCHBASE:
