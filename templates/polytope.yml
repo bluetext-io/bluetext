@@ -46,8 +46,8 @@ tools:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
               path: modules/{pt.param service-name}
-              add-to-tools: [{tool: default, call: backend}]
-      - id: backend
+              add-to-tools: [{tool: default, call: api}]
+      - id: api
         after: {step: scaffold-api}
         code: |-
           #pt-clj
