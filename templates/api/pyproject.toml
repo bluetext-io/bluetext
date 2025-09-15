@@ -9,6 +9,7 @@ dependencies = [
     "pyjwt[cryptography]>=2.10.1",
     "sqlmodel==0.0.24",
     "temporalio>=1.6.0",
+    "twilio>=9.0.0",
     "uvicorn[standard]==0.35.0",
 ]
 

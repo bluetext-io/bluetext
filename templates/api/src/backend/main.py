@@ -54,6 +54,14 @@ async def lifespan(app: FastAPI):
         )
         await app.state.temporal_client.initialize()
 
+    # Initialize Twilio client if enabled
+    if conf.USE_TWILIO:
+        from .clients.twilio import TwilioClient
+        twilio_config = conf.get_twilio_conf()
+        app.state.twilio_client = TwilioClient(twilio_config)
+        await app.state.twilio_client.initialize()
+        await app.state.twilio_client.init_connection()
+
     yield
 
     # Clean up PostgreSQL client if enabled
@@ -67,6 +75,10 @@ async def lifespan(app: FastAPI):
     # Clean up Temporal client if enabled
     if conf.USE_TEMPORAL:
         await app.state.temporal_client.close()
+
+    # Clean up Twilio client if enabled
+    if conf.USE_TWILIO:
+        await app.state.twilio_client.close()
 
 app = FastAPI(
     title="Backend API",

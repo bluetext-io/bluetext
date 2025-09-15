@@ -19,6 +19,9 @@ USE_COUCHBASE = False
 # Set to True to enable Temporal
 USE_TEMPORAL = False
 
+# Set to True to enable Twilio SMS functionality
+USE_TWILIO = False
+
 #### Types ####
 
 class HttpServerConf(BaseModel):
@@ -147,6 +150,24 @@ TEMPORAL_TASK_QUEUE = EnvVarSpec(
     default="main-task-queue"
 )
 
+## Twilio ##
+
+TWILIO_ACCOUNT_SID = EnvVarSpec(
+    id="TWILIO_ACCOUNT_SID",
+    is_optional=True
+)
+
+TWILIO_AUTH_TOKEN = EnvVarSpec(
+    id="TWILIO_AUTH_TOKEN",
+    is_optional=True,
+    is_secret=True
+)
+
+TWILIO_FROM_PHONE_NUMBER = EnvVarSpec(
+    id="TWILIO_FROM_PHONE_NUMBER",
+    is_optional=True
+)
+
 #### Validation ####
 
 def validate() -> bool:
@@ -193,6 +214,14 @@ def validate() -> bool:
             TEMPORAL_PORT,
             TEMPORAL_NAMESPACE,
             TEMPORAL_TASK_QUEUE,
+        ])
+
+    # Only validate Twilio vars if USE_TWILIO is True
+    if USE_TWILIO:
+        env_vars.extend([
+            TWILIO_ACCOUNT_SID,
+            TWILIO_AUTH_TOKEN,
+            TWILIO_FROM_PHONE_NUMBER,
         ])
 
     return env.validate(env_vars)
@@ -263,4 +292,15 @@ def get_temporal_conf():
         port=env.parse(TEMPORAL_PORT),
         namespace=env.parse(TEMPORAL_NAMESPACE),
         task_queue=env.parse(TEMPORAL_TASK_QUEUE),
+    )
+
+def get_twilio_conf():
+    """Get Twilio configuration."""
+    # Import here to avoid circular dependency
+    from .clients.twilio import TwilioConf
+
+    return TwilioConf(
+        account_sid=env.parse(TWILIO_ACCOUNT_SID),
+        auth_token=env.parse(TWILIO_AUTH_TOKEN),
+        from_phone_number=env.parse(TWILIO_FROM_PHONE_NUMBER),
     )
