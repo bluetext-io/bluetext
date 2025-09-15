@@ -48,7 +48,7 @@ async def health_check(
     services: Optional[str] = Query(None, description="Comma-separated list of services to check (postgres,couchbase,temporal,twilio)"),
     timeout: float = Query(2.0, description="Timeout in seconds for health checks", ge=0.1, le=10.0)
 ):
-    """Fast health check endpoint optimized for LLMs and automated clients."""
+    """Fast health check endpoint."""
     start_time = time.time()
 
     health_status = {
