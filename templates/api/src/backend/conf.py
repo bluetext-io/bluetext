@@ -54,6 +54,14 @@ HTTP_AUTORELOAD = EnvVarSpec(
     type=(bool, ...),
 )
 
+HTTP_EXPOSE_ERRORS = EnvVarSpec(
+    id="HTTP_EXPOSE_ERRORS",
+    default="false",
+    parse=lambda x: x.lower() == "true",
+    default="false",
+    type=(bool, ...),
+)
+
 ## PostgreSQL ##
 
 POSTGRES_DB = EnvVarSpec(
@@ -172,9 +180,10 @@ TWILIO_FROM_PHONE_NUMBER = EnvVarSpec(
 
 def validate() -> bool:
     env_vars = [
-        LOG_LEVEL,
-        HTTP_PORT,
         HTTP_AUTORELOAD,
+        HTTP_EXPOSE_ERRORS,
+        HTTP_PORT,
+        LOG_LEVEL,
     ]
 
     # Only validate auth vars if USE_AUTH is True
@@ -235,6 +244,9 @@ def get_auth_config() -> auth.AuthClientConfig:
         audience=env.parse(AUTH_OIDC_AUDIENCE),
         issuer=env.parse(AUTH_OIDC_ISSUER),
     )
+
+def get_http_expose_errors() -> str:
+    return env.parse(HTTP_EXPOSE_ERRORS)
 
 def get_log_level() -> str:
     return env.parse(LOG_LEVEL)
