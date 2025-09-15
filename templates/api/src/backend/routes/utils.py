@@ -100,10 +100,10 @@ DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 def get_couchbase_client(request: Request):
     """
     FastAPI dependency that provides the Couchbase client.
-    
+
     Usage in routes:
         from .utils import CouchbaseDB
-        
+
         @router.post("/users")
         async def create_user(user: User, cb: CouchbaseDB):
             keyspace = cb.get_keyspace("users")
@@ -111,7 +111,7 @@ def get_couchbase_client(request: Request):
     """
     if not conf.USE_COUCHBASE:
         raise HTTPException(status_code=503, detail="Couchbase is not configured")
-    
+
     return request.app.state.couchbase_client
 
 

@@ -14,11 +14,18 @@ async def lifespan(app: FastAPI):
     # Initialize PostgreSQL client if enabled
     if conf.USE_POSTGRES:
         from .clients.postgres import PostgresClient
+        from sqlmodel import SQLModel
+        # Import models to register them with SQLModel
+        from .db import models  # noqa: F401
+
         postgres_config = conf.get_postgres_conf()
         pool_config = conf.get_postgres_pool_conf()
         app.state.postgres_client = PostgresClient(postgres_config, pool_config)
         await app.state.postgres_client.initialize()
         await app.state.postgres_client.init_connection()
+
+        # Create tables after connection is established
+        await app.state.postgres_client.create_tables(SQLModel.metadata)
 
     # Initialize Couchbase client if enabled
     if conf.USE_COUCHBASE:
@@ -38,10 +45,22 @@ async def lifespan(app: FastAPI):
     # Initialize Temporal client if enabled
     if conf.USE_TEMPORAL:
         from .clients.temporal import TemporalClient
+        from .workflows import WORKFLOWS, ACTIVITIES
         temporal_config = conf.get_temporal_conf()
-        app.state.temporal_client = TemporalClient(temporal_config)
+        app.state.temporal_client = TemporalClient(
+            config=temporal_config,
+            workflows=WORKFLOWS,
+            activities=ACTIVITIES
+        )
         await app.state.temporal_client.initialize()
-        await app.state.temporal_client.init_connection()
+
+    # Initialize Twilio client if enabled
+    if conf.USE_TWILIO:
+        from .clients.twilio import TwilioClient
+        twilio_config = conf.get_twilio_conf()
+        app.state.twilio_client = TwilioClient(twilio_config)
+        await app.state.twilio_client.initialize()
+        await app.state.twilio_client.init_connection()
 
     # Initialize Twilio client if enabled
     if conf.USE_TWILIO:

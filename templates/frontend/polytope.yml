@@ -21,7 +21,7 @@ modules:
     args:
       id: {{ project-name }}
       image: oven/bun:alpine
-      code: { type: host, path: {{ path }} }
+      code: { type: repo, path: . }
       cmd: pt.param cmd
       restart:
         policy: pt.param restart-policy

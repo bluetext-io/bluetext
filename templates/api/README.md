@@ -16,6 +16,15 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 **For PostgreSQL:**
 1. Set USE_POSTGRES=true in `src/backend/conf.py`.
 2. Build out the postgres-related routes you want in `src/backend/routes.py` (there are example routes at the bottom).
+3. **IMPORTANT**: Always use `DBSession` from `routes/utils.py` for database access in routes:
+   ```python
+   from .utils import DBSession
+
+   @router.post("/users")
+   async def create_user(user: User, session: DBSession):
+       # session is automatically injected and managed
+       return await create_user(session, user)
+   ```
 
 **For Couchbase:**
 1. Set USE_COUCHBASE=true in `src/backend/conf.py`.
@@ -29,7 +38,14 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 **For Temporal:**
 1. Set USE_TEMPORAL=true in `src/backend/conf.py`.
 2. Uncomment the example routes in `src/backend/routes/base.py` to test workflows.
-3. Modify the example workflows and activities in `src/backend/clients/temporal.py` for your use case.
+3. Add your workflows and activities to `src/backend/workflows/` (see examples in `workflows/examples.py`).
+4. Register them in `src/backend/workflows/__init__.py` by adding to the WORKFLOWS and ACTIVITIES lists.
+
+**For Twilio SMS:**
+1. Set USE_TWILIO=true in `src/backend/conf.py`.
+2. Set the required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_PHONE_NUMBER.
+3. Uncomment the SMS routes in `src/backend/routes/base.py` to enable SMS functionality.
+4. Optionally combine with Temporal workflows for delayed/scheduled SMS messages.
 
 **For Twilio SMS:**
 1. Set USE_TWILIO=true in `src/backend/conf.py`.

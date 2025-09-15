@@ -6,10 +6,8 @@ from dataclasses import dataclass
 from contextlib import asynccontextmanager
 
 from psycopg_pool import AsyncConnectionPool
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlmodel import SQLModel
-
-from ..conf import USE_POSTGRES
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel # noqa
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +101,6 @@ class PostgresClient:
                         if result and result[0] == 1:
                             logger.info("PostgreSQL connection test successful")
 
-                # Create tables using SQLModel
-                await self._create_tables()
-
                 self._connected = True
                 logger.info("PostgreSQL connection established successfully")
 
@@ -138,31 +133,31 @@ class PostgresClient:
         await pool.open()  # Open explicitly
         return pool
 
-    async def _create_tables(self):
-        """Create database tables using SQLModel"""
-        try:
-            # Import models to register them with SQLModel
-            from ..db import models  # noqa: F401
+    async def create_tables(self, metadata):
+        """Create database tables using provided SQLModel metadata
 
+        Args:
+            metadata: SQLModel.metadata object with registered tables
+        """
+        try:
             # Try to create all tables
             logger.info("Creating database tables...")
             try:
-                SQLModel.metadata.create_all(self._engine)
+                async with self._engine.begin() as conn:
+                    await conn.run_sync(metadata.create_all)
                 logger.info("Database tables created successfully")
             except Exception as e:
                 # If creation fails (e.g., incompatible schema), drop and recreate
                 logger.exception(f"Failed to create tables, attempting drop and recreate: {e}")
                 try:
-                    SQLModel.metadata.drop_all(self._engine)
-                    logger.warning("Dropped all existing tables")
-                    SQLModel.metadata.create_all(self._engine)
+                    async with self._engine.begin() as conn:
+                        await conn.run_sync(metadata.drop_all)
+                        logger.warning("Dropped all existing tables")
+                        await conn.run_sync(metadata.create_all)
                     logger.info("Database tables recreated successfully")
                 except Exception as drop_error:
                     logger.exception(f"Failed to drop and recreate tables: {drop_error}")
                     raise
-
-        except ImportError as e:
-            logger.warning(f"Models not found: {e}")
         except Exception as e:
             logger.exception(f"Failed to create tables: {e}")
             # Don't fail startup, just log the error

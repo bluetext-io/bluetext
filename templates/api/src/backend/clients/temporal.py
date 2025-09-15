@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import timedelta
-from typing import Optional
+from typing import Optional, List, Any
 
-from temporalio import activity, workflow
-from temporalio.client import Client
+from temporalio.client import Client, TLSConfig
+from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Worker
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ class TemporalConf:
     port: int
     namespace: str
     task_queue: str
-    
+
     def get_target_host(self) -> str:
         """Get Temporal server target host"""
         return f"{self.host}:{self.port}"
@@ -26,184 +27,267 @@ class TemporalConf:
 
 class TemporalClient:
     """
-    Temporal client for workflow management.
-    
-    Handles connection to Temporal server and provides methods to start,
-    query, and manage workflows.
-    
-    Only initializes if USE_TEMPORAL is True in configuration.
+    Enhanced Temporal client wrapper that handles connection retry and worker management.
     """
-    
-    def __init__(self, config: Optional[TemporalConf] = None):
+
+    def __init__(
+        self,
+        config: TemporalConf,
+        workflows: Optional[List[Any]] = None,
+        activities: Optional[List[Any]] = None,
+        tls: Optional[TLSConfig] = None,
+        use_pydantic: bool = True,
+    ):
+        """
+        Initialize the enhanced Temporal client.
+
+        Args:
+            config: Temporal configuration
+            workflows: List of workflow classes to register
+            activities: List of activity functions to register
+            tls: Optional TLS configuration
+            use_pydantic: Whether to use pydantic_data_converter (default: True)
+        """
         self._config = config
+        self._workflows = workflows or []
+        self._activities = activities or []
+        self._tls = tls
+        self._use_pydantic = use_pydantic
         self._client: Optional[Client] = None
         self._worker: Optional[Worker] = None
-        self._initialized = False
         self._connected = False
         self._worker_task = None
-    
+        self._connection_task = None
+        self._last_connection_error = None
+        self._last_error_log_time = 0
+        self._activity_executor = ThreadPoolExecutor(
+            max_workers=4,
+            thread_name_prefix="temporal-activity"
+        )
+
     async def initialize(self):
-        """Initialize the Temporal client"""
-        if not self._config:
-            raise ValueError("TemporalConf required")
-        
-        self._initialized = True
+        """Initialize client and start connection retry loop in background"""
         logger.info("Temporal client initialized")
-    
-    async def init_connection(self):
-        """Initialize connection to Temporal server"""
-        if not self._initialized:
-            return
-        
-        try:
-            logger.info(f"Connecting to Temporal server at {self._config.get_target_host()}")
-            self._client = await Client.connect(
-                self._config.get_target_host(),
-                namespace=self._config.namespace
-            )
-            self._connected = True
-            logger.info("Connected to Temporal server")
-            
-            # Initialize and start worker
-            await self._init_worker()
-            
-        except Exception as e:
-            logger.error(f"Failed to connect to Temporal: {e}")
-            self._connected = False
-            raise
-    
+        self._connection_task = asyncio.create_task(self._connection_retry_loop())
+
+    async def _connection_retry_loop(self):
+        """Retry connection loop that runs in background"""
+        while not self._connected:
+            try:
+                logger.info(
+                    f"Connecting to Temporal server at {self._config.get_target_host()}"
+                )
+
+                # Connect with optional pydantic data converter
+                connect_kwargs = {
+                    "target_host": self._config.get_target_host(),
+                    "namespace": self._config.namespace,
+                    "tls": self._tls,
+                }
+
+                if self._use_pydantic:
+                    connect_kwargs["data_converter"] = pydantic_data_converter
+
+                self._client = await Client.connect(**connect_kwargs)
+
+                logger.info("Connected to Temporal server")
+
+                # Initialize and start worker
+                await self._init_worker()
+
+                self._connected = True
+                logger.info("Temporal connection established successfully")
+                break
+
+            except Exception as e:
+                self._last_connection_error = str(e)
+                current_time = time.time()
+
+                # Log error every 10 seconds
+                if current_time - self._last_error_log_time >= 10:
+                    logger.warning(f"Temporal connection failed, retrying: {e}")
+                    self._last_error_log_time = current_time
+
+                await asyncio.sleep(1)  # Wait 1 second before retry
+
     async def _init_worker(self):
         """Initialize and start Temporal worker"""
-        if not self._client:
+        if not self._workflows and not self._activities:
+            logger.info(
+                "No workflows or activities registered, skipping worker initialization"
+            )
             return
-        
-        # Create worker with example workflows and activities
+
+        # Create worker with registered workflows and activities
         self._worker = Worker(
             self._client,
             task_queue=self._config.task_queue,
-            workflows=[ExampleWorkflow],
-            activities=[example_activity, example_async_activity]
+            workflows=self._workflows,
+            activities=self._activities,
+            activity_executor=self._activity_executor
         )
-        
+
         # Start worker in background task
         self._worker_task = asyncio.create_task(self._worker.run())
-        logger.info(f"Temporal worker started on task queue: {self._config.task_queue}")
-    
+        logger.info(
+            f"Temporal worker started on task queue: {self._config.task_queue} with "
+            f"{len(self._workflows)} workflows and {len(self._activities)} activities"
+        )
+
     async def close(self):
         """Close Temporal client and worker"""
+        # Cancel connection retry loop
+        if self._connection_task:
+            self._connection_task.cancel()
+            try:
+                await self._connection_task
+            except asyncio.CancelledError:
+                pass
+
+        # Cancel worker task
         if self._worker_task:
             self._worker_task.cancel()
             try:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
-        
-        if self._client:
-            await self._client.close()
-            self._connected = False
-        
+
+        # Shutdown activity executor
+        self._activity_executor.shutdown(wait=True)
+
         logger.info("Temporal client closed")
-    
-    def get_client(self) -> Optional[Client]:
-        """Get the Temporal client instance"""
-        return self._client
-    
+
     def is_connected(self) -> bool:
         """Check if connected to Temporal server"""
         return self._connected
 
+    def _ensure_connected(self):
+        """Ensure client is connected, raise error if not"""
+        if not self._client:
+            raise RuntimeError("Client not connected")
 
-# Example Workflows and Activities
-# These serve as templates - modify or replace with your own business logic
+    def get_client(self) -> Optional[Client]:
+        """Get the underlying Temporal client instance"""
+        return self._client
 
-@activity
-def example_activity(name: str) -> str:
-    """Example synchronous activity"""
-    logger.info(f"Running example activity with name: {name}")
-    return f"Hello, {name} from activity!"
+    # Delegate common client operations to the underlying client
 
+    async def start_workflow(self, *args, **kwargs):
+        """Start a workflow and return its handle"""
+        self._ensure_connected()
+        return await self._client.start_workflow(*args, **kwargs)
 
-@activity
-async def example_async_activity(delay_seconds: int) -> str:
-    """Example asynchronous activity with delay"""
-    logger.info(f"Running async activity with {delay_seconds}s delay")
-    await asyncio.sleep(delay_seconds)
-    return f"Completed async activity after {delay_seconds} seconds"
+    async def execute_workflow(self, *args, **kwargs):
+        """Start a workflow and wait for completion"""
+        self._ensure_connected()
+        return await self._client.execute_workflow(*args, **kwargs)
 
+    def get_workflow_handle(self, *args, **kwargs):
+        """Get a workflow handle to an existing workflow by its ID"""
+        self._ensure_connected()
+        return self._client.get_workflow_handle(*args, **kwargs)
 
-@workflow.defn
-class ExampleWorkflow:
-    """
-    Example workflow that demonstrates basic Temporal patterns.
-    
-    This workflow:
-    1. Runs a simple activity
-    2. Runs an async activity with delay
-    3. Returns combined results
-    """
-    
-    @workflow.run
-    async def run(self, name: str, delay_seconds: int = 2) -> str:
-        """Main workflow method"""
-        
-        # Run synchronous activity
-        result1 = await workflow.execute_activity(
-            example_activity,
-            name,
-            start_to_close_timeout=timedelta(seconds=30)
-        )
-        
-        # Run asynchronous activity
-        result2 = await workflow.execute_activity(
-            example_async_activity,
-            delay_seconds,
-            start_to_close_timeout=timedelta(seconds=60)
-        )
-        
-        return f"Workflow completed: {result1} | {result2}"
+    def get_workflow_handle_for(self, *args, **kwargs):
+        """Get a typed workflow handle to an existing workflow by its ID"""
+        self._ensure_connected()
+        return self._client.get_workflow_handle_for(*args, **kwargs)
 
+    async def count_workflows(self, *args, **kwargs):
+        """Count workflows"""
+        self._ensure_connected()
+        return await self._client.count_workflows(*args, **kwargs)
 
-# Example usage functions for FastAPI routes
+    def list_workflows(self, *args, **kwargs):
+        """List workflows"""
+        self._ensure_connected()
+        return self._client.list_workflows(*args, **kwargs)
 
-async def start_example_workflow(temporal_client: TemporalClient, name: str, delay_seconds: int = 2) -> str:
-    """
-    Example function to start the example workflow.
-    Use this pattern in your FastAPI routes.
-    """
-    if not temporal_client.is_connected():
-        raise RuntimeError("Temporal client not connected")
-    
-    client = temporal_client.get_client()
-    if not client:
-        raise RuntimeError("Temporal client not available")
-    
-    # Start workflow
-    handle = await client.start_workflow(
-        ExampleWorkflow.run,
-        name,
-        delay_seconds,
-        id=f"example-workflow-{name}-{asyncio.get_event_loop().time()}",
-        task_queue=temporal_client._config.task_queue
-    )
-    
-    logger.info(f"Started workflow with ID: {handle.id}")
-    return handle.id
+    async def create_schedule(self, *args, **kwargs):
+        """Create a schedule and return its handle"""
+        self._ensure_connected()
+        return await self._client.create_schedule(*args, **kwargs)
 
+    def get_schedule_handle(self, *args, **kwargs):
+        """Get a schedule handle for the given ID"""
+        self._ensure_connected()
+        return self._client.get_schedule_handle(*args, **kwargs)
 
-async def get_workflow_result(temporal_client: TemporalClient, workflow_id: str) -> str:
-    """
-    Example function to get workflow result.
-    Use this pattern in your FastAPI routes.
-    """
-    if not temporal_client.is_connected():
-        raise RuntimeError("Temporal client not connected")
-    
-    client = temporal_client.get_client()
-    if not client:
-        raise RuntimeError("Temporal client not available")
-    
-    # Get workflow handle and result
-    handle = client.get_workflow_handle(workflow_id)
-    result = await handle.result()
-    
-    return result
+    async def list_schedules(self, *args, **kwargs):
+        """List schedules"""
+        self._ensure_connected()
+        return await self._client.list_schedules(*args, **kwargs)
+
+    def get_async_activity_handle(self, *args, **kwargs):
+        """Get an async activity handle"""
+        self._ensure_connected()
+        return self._client.get_async_activity_handle(*args, **kwargs)
+
+    async def execute_update_with_start_workflow(self, *args, **kwargs):
+        """Send an update-with-start request and wait for the update to complete"""
+        self._ensure_connected()
+        return await self._client.execute_update_with_start_workflow(*args, **kwargs)
+
+    async def start_update_with_start_workflow(self, *args, **kwargs):
+        """Send an update-with-start request and wait for it to be accepted"""
+        self._ensure_connected()
+        return await self._client.start_update_with_start_workflow(*args, **kwargs)
+
+    async def get_worker_build_id_compatibility(self, *args, **kwargs):
+        """Get the Build ID compatibility sets for a specific task queue"""
+        self._ensure_connected()
+        return await self._client.get_worker_build_id_compatibility(*args, **kwargs)
+
+    async def get_worker_task_reachability(self, *args, **kwargs):
+        """Determine if some Build IDs for certain Task Queues could have tasks dispatched to them"""
+        self._ensure_connected()
+        return await self._client.get_worker_task_reachability(*args, **kwargs)
+
+    async def update_worker_build_id_compatibility(self, *args, **kwargs):
+        """Update the relative compatibility of Build IDs"""
+        self._ensure_connected()
+        return await self._client.update_worker_build_id_compatibility(*args, **kwargs)
+
+    # Properties that delegate to the underlying client
+
+    @property
+    def namespace(self) -> str:
+        """Namespace used in calls by this client"""
+        if not self._client:
+            return self._config.namespace
+        return self._client.namespace
+
+    @property
+    def identity(self) -> str:
+        """Identity used in calls by this client"""
+        self._ensure_connected()
+        return self._client.identity
+
+    @property
+    def data_converter(self):
+        """Data converter used by this client"""
+        self._ensure_connected()
+        return self._client.data_converter
+
+    @property
+    def service_client(self):
+        """Raw gRPC service client"""
+        self._ensure_connected()
+        return self._client.service_client
+
+    @property
+    def workflow_service(self):
+        """Raw gRPC workflow service client"""
+        self._ensure_connected()
+        return self._client.workflow_service
+
+    @property
+    def operator_service(self):
+        """Raw gRPC operator service client"""
+        self._ensure_connected()
+        return self._client.operator_service
+
+    @property
+    def test_service(self):
+        """Raw gRPC test service client"""
+        self._ensure_connected()
+        return self._client.test_service
