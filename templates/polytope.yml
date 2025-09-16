@@ -20,7 +20,7 @@ tools:
             type: repo
             repo: "#pt-clj pt/module-repo-ref"
             path: frontend
-          path: project/modules/{pt.param service-name}
+          path: modules/{pt.param service-name}
       - id: frontend
         after:
           step: scaffold-frontend
@@ -50,7 +50,7 @@ tools:
             type: repo
             repo: "#pt-clj pt/module-repo-ref"
             path: api
-          path: project/modules/{pt.param service-name}
+          path: modules/{pt.param service-name}
       - id: backend
         after:
           step: scaffold-api
@@ -73,7 +73,7 @@ tools:
             type: repo
             repo: "#pt-clj pt/module-repo-ref"
             path: postgres
-          path: "project/modules/postgres"
+          path: "modules/postgres"
           on-conflict: skip
       - id: postgres
         after:
@@ -97,7 +97,7 @@ tools:
             type: repo
             repo: "#pt-clj pt/module-repo-ref"
             path: config-manager
-          path: "project/modules/config-manager"
+          path: "modules/config-manager"
           on-conflict: skip
       - id: scaffold-couchbase
         module: polytope/scaffold
@@ -106,7 +106,7 @@ tools:
             type: repo
             repo: "#pt-clj pt/module-repo-ref"
             path: couchbase
-          path: "project/modules/couchbase"
+          path: "modules/couchbase"
           on-conflict: skip
       - id: config-manager
         after:
@@ -139,7 +139,7 @@ tools:
             type: repo
             repo: "#pt-clj pt/module-repo-ref"
             path: postgres
-          path: "project/modules/postgres"
+          path: "modules/postgres"
           on-conflict: skip
       - id: scaffold-temporal
         module: polytope/scaffold
@@ -148,7 +148,7 @@ tools:
             type: repo
             repo: "#pt-clj pt/module-repo-ref"
             path: temporal
-          path: "project/modules/temporal"
+          path: "modules/temporal"
           on-conflict: skip
       - id: postgres
         after:
