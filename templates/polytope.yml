@@ -43,6 +43,7 @@ tools:
     run:
       - id: scaffold-api
         module: polytope/scaffold
+        args:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
               path: modules/{pt.param service-name}
