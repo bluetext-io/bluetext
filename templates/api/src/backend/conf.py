@@ -58,7 +58,6 @@ HTTP_EXPOSE_ERRORS = EnvVarSpec(
     id="HTTP_EXPOSE_ERRORS",
     default="false",
     parse=lambda x: x.lower() == "true",
-    default="false",
     type=(bool, ...),
 )
 

@@ -92,7 +92,7 @@ app = FastAPI(
     title="Backend API",
     version="0.1.0",
     docs_url="/docs",
-    lifespan=lifespan
+    lifespan=lifespan,
     debug=conf.get_http_expose_errors(),
 )
 
