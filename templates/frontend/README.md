@@ -2,6 +2,39 @@
 
 React Router v7 application with Bun, TypeScript, Tailwind CSS, and shadcn/ui + Radix UI components.
 
+## 📁 Import Path Guidelines
+
+**CRITICAL**: This template uses specific import aliases that you MUST follow:
+
+### Use `~` for App Code (app/ directory)
+```tsx
+// ✅ CORRECT - For files in app/ directory
+import { Button } from "~/components/ui/button";      // app/components/ui/button.tsx
+import { HomePage } from "~/routes/home";             // app/routes/home.tsx
+```
+
+### Use `@` for Root-Level Files
+```tsx
+// ✅ CORRECT - For files in project root
+import { apiClient } from "@/lib/apiClient";          // lib/apiClient.ts
+import { utils } from "@/lib/utils";                  // lib/utils.ts
+```
+
+### Path Mappings (from tsconfig.json)
+- `~/*` → `./app/*` (app directory only)
+- `@/*` → `./*` (project root)
+
+### ❌ Common Mistakes to Avoid
+```tsx
+// ❌ WRONG - Using ~ for root-level files
+import { apiClient } from "~/lib/apiClient";          // lib/ is not in app/
+
+// ❌ WRONG - Relative imports from routes
+import { Button } from "../../components/ui/button";  // Use ~ instead
+```
+
+**Rule**: If it's in `app/`, use `~`. If it's in project root, use `@`.
+
 ## Dependencies
 To add packages, use the polytope-mcp run tool:
 ```json
