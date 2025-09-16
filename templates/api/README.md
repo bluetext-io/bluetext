@@ -22,9 +22,10 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 
    @router.post("/users")
    async def create_user(user: User, session: DBSession):
-       # session is automatically injected and managed
+       # DBSession auto-commits - never call session.commit() in model functions
        return await create_user(session, user)
    ```
+   **NEVER add commit logic to database helper functions - DBSession handles this automatically.**
 
 **For Couchbase:**
 1. Set USE_COUCHBASE=true in `src/backend/conf.py`.

@@ -78,17 +78,9 @@ async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]
         raise HTTPException(status_code=503, detail="PostgreSQL is not configured")
 
     postgres_client = request.app.state.postgres_client
-    engine = postgres_client.get_engine()
-
-    async with AsyncSession(engine) as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    
+    async with postgres_client.get_session() as session:
+        yield session
 
 
 # Type alias for dependency injection
