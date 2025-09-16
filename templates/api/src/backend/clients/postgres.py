@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from contextlib import asynccontextmanager
 
 from psycopg_pool import AsyncConnectionPool
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlmodel import SQLModel # noqa
 
 logger = logging.getLogger(__name__)
@@ -251,6 +251,30 @@ class PostgresClient:
 
         async with self._pool.connection() as conn:
             yield conn
+
+    @asynccontextmanager
+    async def get_session(self):
+        """
+        Get an AsyncSession for SQLModel operations with automatic transaction management.
+        
+        Usage:
+            async with client.get_session() as session:
+                user = User(name="John")
+                session.add(user)
+                # session.commit() called automatically on success
+                # session.rollback() called automatically on exception
+        """
+        self._ensure_initialized()
+        
+        async with AsyncSession(self._engine) as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     async def is_connected(self) -> bool:
         """Check if database is connected and responsive (blocking)"""

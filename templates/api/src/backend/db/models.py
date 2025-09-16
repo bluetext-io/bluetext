@@ -29,8 +29,11 @@ from datetime import datetime # noqa
 # # Define your database functions here. Example:
 #
 # async def create_user(session: AsyncSession, user: User) -> User:
-#     """Create a new user"""
+#     """Create a new user - DO NOT call session.commit() here!
+#     
+#     The DBSession dependency in routes/utils.py handles all commits automatically.
+#     Only use session.add(), session.execute(), etc. Never commit or rollback.
+#     """
 #     session.add(user)
-#     await session.commit()
-#     await session.refresh(user)
+#     await session.flush()  # Get the ID without committing
 #     return user
