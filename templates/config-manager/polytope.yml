@@ -1,22 +1,23 @@
-modules:
-  - id: config-manager
+tools:
+  config-manager:
     info: Manages Redpanda topics and Couchbase buckets/scopes/collections
-    module: polytope/python
-    args:
-      image: gcr.io/arched-inkwell-420116/python:3.11.8-slim-bookworm
-      id: config-manager
-      restart: { policy: on-failure }
-      env:
-        - { name: ENVIRONMENT, value: environment }
-        - { name: SERVICES, value: couchbase }
+    run:
+      - tool: polytope/python
+        args:
+          image: gcr.io/arched-inkwell-420116/python:3.11.8-slim-bookworm
+          id: config-manager
+          restart: { policy: on-failure }
+          env:
+            - { name: ENVIRONMENT, value: environment }
+            - { name: SERVICES, value: couchbase }
 
-        - { name: COUCHBASE_HOST, value: couchbase }
-        - { name: COUCHBASE_USERNAME, value: user }
-        - { name: COUCHBASE_PASSWORD, value: password }
-        - { name: COUCHBASE_MAIN_BUCKET_NAME, value: main }
+            - { name: COUCHBASE_HOST, value: couchbase }
+            - { name: COUCHBASE_USERNAME, value: user }
+            - { name: COUCHBASE_PASSWORD, value: password }
+            - { name: COUCHBASE_MAIN_BUCKET_NAME, value: main }
 
-        - { name: REDPANDA_HOST, value: redpanda }
-        - { name: REDPANDA_PORT, value: 9092 }
-      mounts:
-        - { path: /config-manager/conf, source: { type: repo, path: . } }
-        - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache } }
+            - { name: REDPANDA_HOST, value: redpanda }
+            - { name: REDPANDA_PORT, value: 9092 }
+          mounts:
+            - { path: /config-manager/conf, source: { type: repo, path: . } }
+            - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache } }

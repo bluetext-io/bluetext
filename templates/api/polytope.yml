@@ -1,7 +1,6 @@
-modules:
-  - id: {{ project-name }}
+tools:
+  {{ project-name }}:
     info: "'Base' module for other modules in this file to build on."
-    module: polytope/python
     params:
       - id: cmd
         info: The command to run
@@ -21,41 +20,44 @@ modules:
       - id: create
         info: Whether to create the container.
         type: [default, [enum, never, always, when-missing], when-missing]
-    args:
-      id: pt.param id
-      image: astral/uv:python3.13-bookworm-slim
-      code: { type: repo, path: . }
-      cmd: pt.param cmd
-      restart:
-        policy: pt.param restart-policy
-      services: |-
-        #pt-js
-        params.cmd === "./bin/run"
-          ? [{ id: "{{ project-name }}", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
-          : null;
-      env:
-        - { name: HTTP_EXPOSE_ERRORS, value: pt.param dev-mode }
-        - { name: HTTP_AUTORELOAD, value: pt.param dev-mode }
-        - { name: HTTP_PORT, value: pt.param port }
-        - { name: LOG_LEVEL, value: INFO }
+    run:
+      - tool: polytope/python
+        args:
+          id: pt.param id
+          image: astral/uv:python3.13-bookworm-slim
+          code: { type: repo, path: . }
+          cmd: pt.param cmd
+          restart:
+            policy: pt.param restart-policy
+          services: |-
+            #pt-js
+            params.cmd === "./bin/run"
+              ? [{ id: "{{ project-name }}", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
+              : null;
+          env:
+            - { name: HTTP_EXPOSE_ERRORS, value: pt.param dev-mode }
+            - { name: HTTP_AUTORELOAD, value: pt.param dev-mode }
+            - { name: HTTP_PORT, value: pt.param port }
+            - { name: LOG_LEVEL, value: INFO }
 
-        - { name: POSTGRES_HOST, value: postgres }
+            - { name: POSTGRES_HOST, value: postgres }
 
-        - { name: TEMPORAL_HOST, value: temporal }
-        - { name: TEMPORAL_PORT, value: 7233 }
-        - { name: TEMPORAL_NAMESPACE, value: default }
-        - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
-      mounts:
-        - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
-  - id: {{ project-name }}-add
+            - { name: TEMPORAL_HOST, value: temporal }
+            - { name: TEMPORAL_PORT, value: 7233 }
+            - { name: TEMPORAL_NAMESPACE, value: default }
+            - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
+          mounts:
+            - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
+  {{ project-name }}-add:
     info: Adds one or more packages to the pyproject.toml file.
-    module: {{ project-name }}
     params:
       - id: packages
         info: comma/whitespace-separated list of python packages to add to pyproject.toml
         type: str
-    args:
-      id: {{ project-name }}-add
-      restart-policy: on-failure
-      cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
-      create: always
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add
+          restart-policy: on-failure
+          cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
+          create: always

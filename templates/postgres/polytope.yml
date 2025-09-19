@@ -1,15 +1,16 @@
-modules:
-  - id: {{ project-name }}
+tools:
+  {{ project-name }}:
     info: |
       Runs a PostgreSQL database server in dev mode.
       Uses the persistent volume `postgres-data-{{ project-name }}`.
       Exposes the PostgreSQL port on `postgres:5432` within the job, and at `localhost:5432` on the host.
       Default database: postgres, default user: postgres
-    module: polytope/postgres!simple
-    args:
-      data-volume: { id: postgres-data-{{ project-name }}, type: volume, scope: project }
+    run:
+      - tool: polytope/postgres!simple
+        args:
+          data-volume: { id: postgres-data-{{ project-name }}, type: volume, scope: project }
 
-  - id: psql
+  psql:
     info: Runs the PSQL shell.
     params:
       - id: image
@@ -43,39 +44,41 @@ modules:
         info: The command to run. If unset, runs an interactive session.
         name: Command
         type: [maybe, str]
-    module: polytope/container
-    args:
-      image: pt.param image
-      env:
-        - name: PG_PASSWORD
-          value: pt.param password
-      id: psql
-      cmd: |
-        #pt-clj
-        (->> ["psql"
-              (str "--host=" (:hostname params))
-              (str "--user=" (:username params))
-              (str "--dbname=" (:database params))
-              (when (:command params)
-                (str "--command=" (:command params)))]
-             (remove nil?))
+    run:
+      - tool: polytope/container
+        args:
+          image: pt.param image
+          env:
+            - name: PG_PASSWORD
+              value: pt.param password
+          id: psql
+          cmd: |
+            #pt-clj
+            (->> ["psql"
+                  (str "--host=" (:hostname params))
+                  (str "--user=" (:username params))
+                  (str "--dbname=" (:database params))
+                  (when (:command params)
+                    (str "--command=" (:command params)))]
+                 (remove nil?))
 
-  - id: pgweb
+  pgweb:
     info: |
       Runs pgweb - a web-based PostgreSQL database browser service. 
       To run this module call the mcp "run" tool with "pgweb" as module argument.
       To log in provide the postgres module id as hostname, "postgres" as username and no password when running in dev mode.
       The pgweb service will be available at http://localhost:8081.
-    module: polytope/container
-    args:
-      image: sosedoff/pgweb:0.15.0
-      id: pgweb
-      restart:
-        policy: always
-      services:
-        - id: pgweb
-          ports:
-            - {protocol: http, port: 8081, expose-as: 8081}
-      env:
-        - {name: PGWEB_DATABASE_URL, value: postgres://postgres:password@postgres:5432/postgres?sslmode=disable}
-      create: when-missing
+    run:
+      - tool: polytope/container
+        args:
+          image: sosedoff/pgweb:0.15.0
+          id: pgweb
+          restart:
+            policy: always
+          services:
+            - id: pgweb
+              ports:
+                - {protocol: http, port: 8081, expose-as: 8081}
+          env:
+            - {name: PGWEB_DATABASE_URL, value: postgres://postgres:password@postgres:5432/postgres?sslmode=disable}
+          create: when-missing

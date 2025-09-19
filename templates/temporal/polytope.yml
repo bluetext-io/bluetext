@@ -1,43 +1,45 @@
-modules:
-  - id: temporal
+tools:
+  temporal:
     info: "Runs Temporal with auto-initialization"
-    module: polytope/container
-    args:
-      image: temporalio/auto-setup:1.26.3.0
-      id: temporal
-      restart:
-        policy: on-failure
-      services:
-        - id: temporal
-          ports:
-            - {label: grpc, protocol: tcp, port: 7233, expose-as: 7233}
-      env:
-        - {name: DB, value: postgres12}
-        - {name: DB_PORT, value: 5432}
-        - {name: DYNAMIC_CONFIG_FILE, value: /etc/temporal/config/dynamicconfig/development.yaml}
-        - {name: LOG_LEVEL, value: warn}
-        - {name: POSTGRES_PWD, value: password}
-        - {name: POSTGRES_SEEDS, value: postgres}
-        - {name: POSTGRES_USER, value: postgres}
-        - {name: TEMPORAL_ADDRESS, value: temporal:7233}
-        - {name: TEMPORAL_CLI_ADDRESS, value: temporal:7233}
-      mounts:
-        - path: /etc/temporal/config
-          source: {type: volume, scope: project, id: temporal-config}
-      create: when-missing
-  - id: temporal-ui
+    run:
+      - tool: polytope/container
+        args:
+          image: temporalio/auto-setup:1.26.3.0
+          id: temporal
+          restart:
+            policy: on-failure
+          services:
+            - id: temporal
+              ports:
+                - {label: grpc, protocol: tcp, port: 7233, expose-as: 7233}
+          env:
+            - {name: DB, value: postgres12}
+            - {name: DB_PORT, value: 5432}
+            - {name: DYNAMIC_CONFIG_FILE, value: /etc/temporal/config/dynamicconfig/development.yaml}
+            - {name: LOG_LEVEL, value: warn}
+            - {name: POSTGRES_PWD, value: password}
+            - {name: POSTGRES_SEEDS, value: postgres}
+            - {name: POSTGRES_USER, value: postgres}
+            - {name: TEMPORAL_ADDRESS, value: temporal:7233}
+            - {name: TEMPORAL_CLI_ADDRESS, value: temporal:7233}
+          mounts:
+            - path: /etc/temporal/config
+              source: {type: volume, scope: project, id: temporal-config}
+          create: when-missing
+  temporal-ui:
     info: "Runs the Temporal Web UI"
-    module: polytope/container
-    args:
-      image: temporalio/ui:2.40.0
-      id: temporal-ui
-      restart:
-        policy: always
-      services:
-        - id: temporal-ui
-          ports:
-            - {protocol: http, port: 8233, expose-as: 8233}
-      env:
-        - {name: TEMPORAL_ADDRESS, value: temporal:7233}
-        - {name: TEMPORAL_UI_PORT, value: 8233}
-      create: when-missing
+    run:
+      - tool: polytope/container
+        args:
+          image: temporalio/ui:2.40.0
+          id: temporal-ui
+          restart:
+            policy: always
+          services:
+            - id: temporal-ui
+              ports:
+                - {protocol: http, port: 8233, expose-as: 8233}
+          env:
+            - {name: TEMPORAL_ADDRESS, value: temporal:7233}
+            - {name: TEMPORAL_UI_PORT, value: 8233}
+          create: when-missing
