@@ -36,8 +36,8 @@ class CouchbaseController:
 
         # Load from environment variables if not provided
         self.host = host or self._get_env_var('COUCHBASE_HOST', 'couchbase')
-        self.username = username or self._get_env_var('COUCHBASE_USERNAME', 'admin')
-        self.password = password or self._get_env_var('COUCHBASE_PASSWORD', '***')
+        self.username = username or self._get_env_var('COUCHBASE_USERNAME', 'user')
+        self.password = password or self._get_env_var('COUCHBASE_PASSWORD', 'password')
         self.tls = tls if tls is not None else self._get_env_var('COUCHBASE_TLS', 'false').lower() == 'true'
         self.couchbase_type = self._get_env_var('COUCHBASE_TYPE', 'server')
         self.cluster = None
@@ -59,6 +59,21 @@ class CouchbaseController:
         """Get the connection string for Couchbase."""
         protocol = "couchbases" if self.tls else "couchbase"
         return f"{protocol}://{self.host}"
+
+    def _test_connection(self) -> bool:
+        """Test basic connectivity to Couchbase server."""
+        protocol = "https" if self.tls else "http"
+        port = "18091" if self.tls else "8091"
+        test_url = f"{protocol}://{self.host}:{port}/pools"
+        
+        try:
+            request = urllib.request.Request(test_url, method='GET')
+            with urllib.request.urlopen(request, timeout=10) as response:
+                self.logger.debug(f"✅ Connection test successful: {response.code}")
+                return True
+        except Exception as e:
+            self.logger.debug(f"❌ Connection test failed: {e}")
+            return False
 
     def _get_cluster_init_params(self) -> Dict[str, Any]:
         """Get parameters for cluster initialization."""
@@ -92,24 +107,41 @@ class CouchbaseController:
             method='POST'
         )
 
-        max_retries = 100
+        max_retries = 30  # Reduced from 100 to fail faster
         for attempt in range(max_retries):
             try:
-                with urllib.request.urlopen(request, timeout=10*60) as response:
-                    response.read().decode()
+                with urllib.request.urlopen(request, timeout=30) as response:  # Reduced timeout from 10 minutes
+                    response_text = response.read().decode()
                     self.logger.info("✅ Cluster initialization successful")
-                return
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    self.logger.error('❌ Timeout: Failed to start cluster after maximum retries')
-                    raise e
-                error_message = str(e)
-                if 'already initialized' in error_message or 'Unauthorized' in error_message:
+                    return
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode() if hasattr(e, 'read') else str(e)
+                self.logger.debug(f"HTTP Error {e.code}: {error_body}")
+                
+                if e.code == 400 and ('already initialized' in error_body or 'Cluster is already initialized' in error_body):
                     self.logger.info("✅ Cluster already initialized")
                     return
-                self.logger.debug(f"⏳ Waiting for cluster startup... (attempt {attempt + 1}/{max_retries})")
-                # Brief wait before retry - this is necessary for cluster startup
-                time.sleep(1)
+                elif e.code == 401:
+                    self.logger.error(f"❌ Authentication failed with credentials: {self.username}/{'*' * len(self.password)}")
+                    raise e
+                elif attempt == max_retries - 1:
+                    self.logger.error(f'❌ HTTP Error after {max_retries} attempts: {e.code} - {error_body}')
+                    raise e
+                    
+            except urllib.error.URLError as e:
+                if attempt == max_retries - 1:
+                    self.logger.error(f'❌ Connection failed after {max_retries} attempts: {e}')
+                    raise e
+                self.logger.debug(f"⏳ Connection failed, retrying... (attempt {attempt + 1}/{max_retries}): {e}")
+                
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    self.logger.error(f'❌ Unexpected error after {max_retries} attempts: {e}')
+                    raise e
+                self.logger.debug(f"⏳ Unexpected error, retrying... (attempt {attempt + 1}/{max_retries}): {e}")
+                
+            # Brief wait before retry
+            time.sleep(2)
 
         raise Exception("Failed to initialize cluster after maximum retries")
 
@@ -375,6 +407,17 @@ class CouchbaseController:
     def run_ops(self) -> None:
         """Run all Couchbase operations for the configured environment."""
         self.logger.info("🔄 Processing Couchbase resources...")
+
+        # Test basic connectivity first
+        self.logger.info("🔍 Testing connection to Couchbase server...")
+        max_connection_retries = 30
+        for attempt in range(max_connection_retries):
+            if self._test_connection():
+                break
+            if attempt == max_connection_retries - 1:
+                raise Exception(f"Failed to connect to Couchbase server at {self.host} after {max_connection_retries} attempts")
+            self.logger.debug(f"⏳ Connection test failed, retrying... (attempt {attempt + 1}/{max_connection_retries})")
+            time.sleep(2)
 
         # Only initialize cluster if it's a server type (not client)
         if self.couchbase_type == 'server':
