@@ -7,8 +7,10 @@ tools:
           image: gcr.io/arched-inkwell-420116/python:3.11.8-slim-bookworm
           id: config-manager
           restart: { policy: on-failure }
+          code: { type: repo, path: . }
+          cmd: ./bin/run
           env:
-            - { name: ENVIRONMENT, value: environment }
+            - { name: ENVIRONMENT, value: dev }
             - { name: SERVICES, value: couchbase }
 
             - { name: COUCHBASE_HOST, value: couchbase }
@@ -19,5 +21,5 @@ tools:
             - { name: REDPANDA_HOST, value: redpanda }
             - { name: REDPANDA_PORT, value: 9092 }
           mounts:
-            - { path: /config-manager/conf, source: { type: repo, path: . } }
+            - { path: /conf/, source: { type: repo, path: conf }}
             - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache } }
