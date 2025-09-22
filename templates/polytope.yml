@@ -14,7 +14,7 @@ tools:
         type: [default, str, frontend]
     run:
       - id: scaffold-frontend
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: frontend}
@@ -42,7 +42,7 @@ tools:
         type: [default, str, api]
     run:
       - id: scaffold-api
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
@@ -63,7 +63,7 @@ tools:
     await: [scaffold-postgres]
     run:
       - id: scaffold-postgres
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
@@ -83,7 +83,7 @@ tools:
     await: [scaffold-couchbase, scaffold-config-manager]
     run:
       - id: scaffold-couchbase
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: config-manager}
@@ -112,7 +112,7 @@ tools:
     await: [scaffold-postgres, scaffold-temporal]
     run:
       - id: scaffold-temporal
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: temporal}
