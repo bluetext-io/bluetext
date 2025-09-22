@@ -1,7 +1,6 @@
-modules:
-  - id: {{ project-name }}
+tools:
+  {{ project-name }}:
     info: "Base module for other modules in this file to build on."
-    module: polytope/node
     params:
       - id: cmd
         info: The command to run
@@ -21,36 +20,39 @@ modules:
       - id: create
         info: Whether to create the container.
         type: [default, [enum, never, always, when-missing], when-missing]
-    args:
-      id: {{ project-name }}
-      image: oven/bun:alpine
-      create: pt.param create
-      code: { type: repo, path: . }
-      cmd: pt.param cmd
-      restart:
-        policy: pt.param restart-policy
-      services: |-
-        #pt-js
-        params.cmd === "./bin/run"
-          ? [{ id: "{{ project-name }}", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
-          : null;
-      env:
-        - { name: PORT, value: pt.param port }
-        - { name: VITE_API_BASE_URL, value: pt.param api-base-url }
-        - { name: LOG_LEVEL, value: INFO }
-      mounts:
-        - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-home-cache }}
-        - { path: /root/.bun/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-bun-cache }}
-        - { path: /app/node_modules/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-node-modules }}
-  - id: {{ project-name }}-add
+    run:
+      - tool: polytope/node
+        args:
+          id: {{ project-name }}
+          image: oven/bun:alpine
+          create: pt.param create
+          code: { type: repo, path: . }
+          cmd: pt.param cmd
+          restart:
+            policy: pt.param restart-policy
+          services: |-
+            #pt-js
+            params.cmd === "./bin/run"
+              ? [{ id: "{{ project-name }}", ports: [{ protocol: "http", port: params.port, 'expose-as': params.port }] }]
+              : null;
+          env:
+            - { name: PORT, value: pt.param port }
+            - { name: VITE_API_BASE_URL, value: pt.param api-base-url }
+            - { name: LOG_LEVEL, value: INFO }
+          mounts:
+            - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-home-cache }}
+            - { path: /root/.bun/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-bun-cache }}
+            - { path: /app/node_modules/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-node-modules }}
+  {{ project-name }}-add:
     info: Adds one or more packages to the package.json file.
-    module: {{ project-name }}
     params:
       - id: packages
         info: comma/whitespace-separated list of npm packages to add to package.json
         type: str
-    args:
-      id: {{ project-name }}-add
-      restart-policy: on-failure
-      cmd: '#pt-js "bun add " + params.packages.replace(/[\s,]+/g, " ")'
-      create: always
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add
+          restart-policy: on-failure
+          cmd: '#pt-js "bun add " + params.packages.replace(/[\s,]+/g, " ")'
+          create: always
