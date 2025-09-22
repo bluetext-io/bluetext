@@ -14,16 +14,14 @@ tools:
         type: [default, str, frontend]
     run:
       - id: scaffold-frontend
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
-          template:
-            type: repo
-            repo: "#pt-clj pt/module-repo-ref"
-            path: frontend
-          path: modules/{pt.param service-name}
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: frontend-react-router}
+              path: modules/{pt.param service-name}
+              add-to-tools: [{tool: default, call: pt.param service-name}]
       - id: frontend
-        after:
-          step: scaffold-frontend
+        after: {step: scaffold-frontend}
         code: |-
           #pt-clj
           (-> (clojure.string/replace (:service-name params) #"[^A-Za-z0-9-]*$" "")
@@ -44,16 +42,14 @@ tools:
         type: [default, str, api]
     run:
       - id: scaffold-api
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
-          template:
-            type: repo
-            repo: "#pt-clj pt/module-repo-ref"
-            path: api
-          path: modules/{pt.param service-name}
-      - id: backend
-        after:
-          step: scaffold-api
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
+              path: modules/{pt.param service-name}
+              add-to-tools: [{tool: default, call: pt.param service-name}]
+      - id: api
+        after: {step: scaffold-api}
         code: |-
           #pt-clj
           (-> (clojure.string/replace (:service-name params) #"[^A-Za-z0-9-]*$" "")
@@ -67,20 +63,16 @@ tools:
     await: [scaffold-postgres]
     run:
       - id: scaffold-postgres
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
-          template:
-            type: repo
-            repo: "#pt-clj pt/module-repo-ref"
-            path: postgres
-          path: "modules/postgres"
-          on-conflict: skip
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
+              path: modules/postgres
+              on-conflict: skip
+              add-to-tools: [{tool: default, call: postgres}]
       - id: postgres
-        after:
-          step: scaffold-postgres
-        code: |-
-          #pt-clj
-          (pt/call-module "postgres" {})
+        after: {step: scaffold-postgres}
+        code: '#pt-clj (pt/call-module "postgres" {})'
 
   add-couchbase:
     info: |
@@ -90,37 +82,24 @@ tools:
       The environment is set to run in a basic dev mode with no auth, etc.
     await: [scaffold-couchbase, scaffold-config-manager]
     run:
-      - id: scaffold-config-manager
-        module: polytope/scaffold
-        args:
-          template:
-            type: repo
-            repo: "#pt-clj pt/module-repo-ref"
-            path: config-manager
-          path: "modules/config-manager"
-          on-conflict: skip
       - id: scaffold-couchbase
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
-          template:
-            type: repo
-            repo: "#pt-clj pt/module-repo-ref"
-            path: couchbase
-          path: "modules/couchbase"
-          on-conflict: skip
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: config-manager}
+              path: modules/config-manager
+              on-conflict: skip
+              add-to-tools: [{tool: default, call: config-manager}]
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: couchbase}
+              path: modules/couchbase
+              on-conflict: skip
+              add-to-tools: [{tool: default, call: couchbase}]
       - id: config-manager
-        after:
-          step: scaffold-config-manager
-        code: |-
-          #pt-clj
-          (pt/call-module "config-manager" {})
+        after: {step: scaffold-couchbase}
+        code: '#pt-clj (pt/call-module "config-manager" {})'
       - id: couchbase
-        after:
-          - step: scaffold-couchbase
-          - step: scaffold-config-manager
-        code: |-
-          #pt-clj
-          (pt/call-module "couchbase" {})
+        after: {step: scaffold-couchbase}
+        code: '#pt-clj (pt/call-module "couchbase" {})'
 
   add-temporal:
     info: |
@@ -132,41 +111,26 @@ tools:
       The environment is set to run in a basic dev mode with no auth, etc.
     await: [scaffold-postgres, scaffold-temporal]
     run:
-      - id: scaffold-postgres
-        module: polytope/scaffold
-        args:
-          template:
-            type: repo
-            repo: "#pt-clj pt/module-repo-ref"
-            path: postgres
-          path: "modules/postgres"
-          on-conflict: skip
       - id: scaffold-temporal
-        module: polytope/scaffold
+        tool: polytope/scaffold
         args:
-          template:
-            type: repo
-            repo: "#pt-clj pt/module-repo-ref"
-            path: temporal
-          path: "modules/temporal"
-          on-conflict: skip
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: temporal}
+              path: modules/temporal
+              on-conflict: skip
+              add-to-tools:
+                - {tool: default, call: temporal}
+                - {tool: default, call: temporal-ui}
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
+              path: modules/postgres
+              on-conflict: skip
+              add-to-tools: [{tool: default, call: postgres}]
       - id: postgres
-        after:
-          step: scaffold-postgres
-        code: |-
-          #pt-clj
-          (pt/call-module "postgres" {})
+        after: {step: scaffold-temporal}
+        code: '#pt-clj (pt/call-module "postgres" {})'
       - id: temporal
-        after:
-          - step: scaffold-temporal
-          - step: scaffold-postgres
-        code: |-
-          #pt-clj
-          (pt/call-module "temporal" {})
+        after: {step: scaffold-temporal}
+        code: '#pt-clj (pt/call-module "temporal" {})'
       - id: temporal-ui
-        after:
-          - step: scaffold-postgres
-          - step: scaffold-temporal
-        code: |-
-          #pt-clj
-          (pt/call-module "temporal-ui" {})
+        after: {step: scaffold-temporal}
+        code: '#pt-clj (pt/call-module "temporal-ui" {})'
