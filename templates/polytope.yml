@@ -17,9 +17,9 @@ tools:
         tool: polytope/scaffold
         args:
           actions:
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: frontend}
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: frontend-react-router}
               path: modules/{pt.param service-name}
-              add-to-tools: [{tool: default, call: frontend}]
+              add-to-tools: [{tool: default, call: pt.param service-name}]
       - id: frontend
         after: {step: scaffold-frontend}
         code: |-
@@ -47,7 +47,7 @@ tools:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
               path: modules/{pt.param service-name}
-              add-to-tools: [{tool: default, call: api}]
+              add-to-tools: [{tool: default, call: pt.param service-name}]
       - id: api
         after: {step: scaffold-api}
         code: |-
