@@ -11,6 +11,50 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 
 **Do not manually run the `{{ project-name }}` module - it's already running by calling `add-{{ project-name }}`.**
 
+## 🧰 Available Development Tools
+
+{{ project-name }}-lint      # Run linting checks
+{{ project-name }}-format    # Format code
+{{ project-name }}-validate  # Development validation
+
+execute like:
+`run("module": "{{ project-name }}-validate", "args": [])`
+
+validate will check for common issues like:
+- Python version compatibility
+- UUID usage patterns
+- Enum value conventions
+- Temporal workflow patterns
+- Database type consistency
+
+
+## ⚠️ CRITICAL PATTERNS - Avoid Common Mistakes
+
+### Database Models
+- ✅ **Use UUID7 primary keys**: `id: str = pk_field()`
+- ✅ **Enum values lowercase**: `STATUS = "active"` (not `"ACTIVE"`)
+- ✅ **API responses use strings**: `"id": str(model.id)`
+- ❌ **Never call `session.flush()`** in database functions - causes "NULL identity key" errors
+- ✅ **Let DBSession auto-commit** - no manual commits needed
+
+### Temporal Workflows
+- ✅ **Use `workflow.sleep()`** for delays: `await workflow.sleep(3)`
+- ✅ **Handle `wait_condition` correctly**: Don't check `if not result` after wait_condition
+- ❌ **Never use `asyncio.sleep()`** in workflows - breaks determinism
+- ✅ **Activities need own DB connection** - cannot access app state
+- ✅ **Use Pydantic models** for activity inputs/outputs
+
+### API Response Handling
+- ✅ **Convert UUIDs to strings**: Use `UserResponse.from_model(user)` pattern
+- ✅ **Separate request/response models**: Don't use SQLModel directly in API responses
+- ✅ **Handle type conversions explicitly**: String IDs in URLs, UUID objects in database
+
+### Architecture Decisions
+- **Primary Keys**: UUID7 for uniqueness, ordering, and no auto-increment issues
+- **Database Sessions**: Auto-commit pattern prevents manual transaction management errors
+- **Temporal Integration**: Activities are stateless with dedicated connections
+- **Type Safety**: Explicit conversion between UUID and string types
+
 ## 🛠️ Development instructions
 
 **For PostgreSQL:**
@@ -19,13 +63,18 @@ To view logs, use: `get-logs-in-job{"step":"backend"}`
 3. **IMPORTANT**: Always use `DBSession` from `routes/utils.py` for database access in routes:
    ```python
    from .utils import DBSession
+   from ..db.utils import pk_field
+
+   class User(SQLModel, table=True):
+       id: str = pk_field()  # UUID7 primary key
+       email: str = Field(unique=True, index=True)
 
    @router.post("/users")
    async def create_user(user: User, session: DBSession):
-       # DBSession auto-commits - never call session.commit() in model functions
-       return await create_user(session, user)
+       # DBSession auto-commits - NEVER call session.commit() or session.flush()
+       return await create_user_db(session, user)
    ```
-   **NEVER add commit logic to database helper functions - DBSession handles this automatically.**
+   **CRITICAL: Never call `session.flush()` in database functions - causes database errors!**
 
 **For Couchbase:**
 1. Set USE_COUCHBASE=true in `src/backend/conf.py`.

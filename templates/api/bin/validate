@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+. "$(dirname "$0")/init"
+
+trap 'jobs -p | xargs -r kill' EXIT
+
+echo "🔧 Running development validation checks..."
+echo
+
+exec uv run python -m src.backend.utils.validation

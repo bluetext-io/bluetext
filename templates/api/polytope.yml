@@ -61,3 +61,12 @@ tools:
           restart-policy: on-failure
           cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
+  {{ project-name }}-validate:
+    info: Run development validation checks to catch common issues before deployment.
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-validate
+          restart-policy: never
+          cmd: ./bin/validate
+          create: always
