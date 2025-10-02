@@ -89,7 +89,6 @@ tools:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: config-manager}
               path: modules/config-manager
               on-conflict: skip
-              add-to-tools: [{tool: default, call: config-manager}]
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: couchbase}
               path: modules/couchbase
               on-conflict: skip

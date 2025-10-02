@@ -32,8 +32,13 @@ async def lifespan(app: FastAPI):
         from .clients.couchbase import CouchbaseClient
         couchbase_config = conf.get_couchbase_conf()
         app.state.couchbase_client = CouchbaseClient(couchbase_config)
-        await app.state.couchbase_client.initialize()
         await app.state.couchbase_client.init_connection()
+
+        # Import and initialize all Couchbase collections
+        from .couchbase.collections import COLLECTIONS
+        for Collection in COLLECTIONS:
+            await Collection(app.state.couchbase_client).initialize()
+
 
     # Initialize auth client if enabled
     if conf.USE_AUTH:
@@ -53,14 +58,6 @@ async def lifespan(app: FastAPI):
             activities=ACTIVITIES
         )
         await app.state.temporal_client.initialize()
-
-    # Initialize Twilio client if enabled
-    if conf.USE_TWILIO:
-        from .clients.twilio import TwilioClient
-        twilio_config = conf.get_twilio_conf()
-        app.state.twilio_client = TwilioClient(twilio_config)
-        await app.state.twilio_client.initialize()
-        await app.state.twilio_client.init_connection()
 
     # Initialize Twilio client if enabled
     if conf.USE_TWILIO:

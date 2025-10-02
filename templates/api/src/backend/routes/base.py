@@ -8,8 +8,9 @@ from fastapi import APIRouter, Request, HTTPException, Query
 
 from ..utils import log
 from .. import conf
-# from ..utils import RequestPrincipal # NOTE: uncomment to use auth
-# from ..utils import DBSession # NOTE: uncomment to use postgres
+# from .utils import RequestPrincipal # NOTE: uncomment to use auth
+# from .utils import DBSession # NOTE: uncomment to use postgres
+# from .utils import CouchbaseDB
 
 logger = log.get_logger(__name__)
 router = APIRouter()
@@ -270,6 +271,93 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 #     except Exception as e:
 #         return {"workflow_id": workflow_id, "error": str(e), "status": "error"}
 
+# POST endpoint pattern: Create DB record + Start workflow (works with any database backend)
+#
+# from pydantic import BaseModel
+# from uuid import UUID
+#
+# class JobRequest(BaseModel):
+#     name: str
+#     data: dict = {}
+#
+# class JobResponse(BaseModel):
+#     id: UUID
+#     name: str
+#     status: str
+#     created_at: datetime
+#
+# # PostgreSQL implementation (uncomment if using PostgreSQL)
+# async def create_job_record(session: AsyncSession, name: str):
+#     job = Job(name=name, status="pending")
+#     session.add(job)
+#     await session.flush()
+#     await session.refresh(job)
+#     return job
+#
+# async def get_job_by_id(session: AsyncSession, job_id: UUID):
+#     statement = select(Job).where(Job.id == job_id)
+#     result = await session.execute(statement)
+#     return result.scalar_one_or_none()
+#
+# # Couchbase implementation (uncomment if using Couchbase)
+# async def create_job_record(cb: CouchbaseDB, name: str):
+#     job_id = str(uuid.uuid4())
+#     job_data = {
+#         "id": job_id,
+#         "name": name,
+#         "status": "pending",
+#         "created_at": datetime.utcnow().isoformat()
+#     }
+#     keyspace = cb.get_keyspace("jobs")
+#     await cb.insert_document(keyspace, job_id, job_data)
+#     return type('Job', (), job_data)()  # Simple object with attributes
+#
+# async def get_job_by_id(cb: CouchbaseDB, job_id: UUID):
+#     keyspace = cb.get_keyspace("jobs")
+#     try:
+#         doc = await cb.get_document(keyspace, str(job_id))
+#         return type('Job', (), doc)()  # Simple object with attributes
+#     except DocumentNotFoundException:
+#         return None
+#
+# @router.post("/jobs", response_model=JobResponse, status_code=201)
+# async def create_job(request: Request, job_request: JobRequest, session: DBSession):
+#     """Create a database record and start a workflow."""
+#     # Create database record first
+#     job = await create_job_record(session, job_request.name)
+#
+#     # Start Temporal workflow
+#     temporal_client = request.app.state.temporal_client
+#     workflow_id = f"job-{job.id}"
+#
+#     await temporal_client.start_workflow(
+#         ProcessJobWorkflow.run,
+#         args=[str(job.id), job_request.data],
+#         id=workflow_id,
+#         task_queue=temporal_client._config.task_queue,
+#     )
+#
+#     return JobResponse(
+#         id=job.id,
+#         name=job.name,
+#         status="pending",
+#         created_at=job.created_at
+#     )
+#
+# @router.get("/jobs/{job_id}", response_model=JobResponse)
+# async def get_job(job_id: UUID, session: DBSession):
+#     """Get job status by ID."""
+#     job = await get_job_by_id(session, job_id)
+#     if not job:
+#         raise HTTPException(status_code=404, detail="Job not found")
+#
+#     return JobResponse(
+#         id=job.id,
+#         name=job.name,
+#         status=job.status,
+#         created_at=job.created_at
+#     )
+
 
 # Twilio SMS route examples (uncomment when using Twilio)
 #
@@ -313,6 +401,7 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 #         logger.error(f"Unexpected error sending SMS: {e}")
 #         raise HTTPException(status_code=500, detail="Internal server error")
 #
+
 # # Example: Send SMS with Temporal workflow for delayed/scheduled messages
 # @router.post("/sms/send-delayed")
 # async def send_delayed_sms(request: Request, sms_request: SMSRequest, delay_minutes: int = 5):

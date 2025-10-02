@@ -13,7 +13,7 @@ tools:
         type: [default, int, 3030]
       - id: restart-policy
         info: Restart policy for the container.
-        type: [default, [enum, always, on-failure], always]
+        type: [default, [enum, always, never, on-failure], always]
       - id: id
         info: The container ID to use.
         type: [default, str, {{ project-name }}]
@@ -60,4 +60,18 @@ tools:
           id: {{ project-name }}-add
           restart-policy: on-failure
           cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
+          create: always
+
+  {{ project-name }}-add-couchbase-collection:
+    info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
+    params:
+      - id: name
+        info: Scaffolds a new Couchbase collection with CRUD operations, Pydantic models, and automatic integration.
+        type: str
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add-couchbase-collection
+          restart-policy: never
+          cmd: ./bin/add-couchbase-collection {pt.param name}
           create: always

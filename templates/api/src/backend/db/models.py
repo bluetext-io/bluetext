@@ -12,18 +12,19 @@ To add a new model:
 """
 
 from sqlmodel import SQLModel, Field, select # noqa
+import sqlalchemy as sa # noqa
 from sqlalchemy.ext.asyncio import AsyncSession # noqa
 from typing import Optional # noqa
 from datetime import datetime # noqa
-
+from uuid import UUID # noqa
 
 # Define your models here. Example:
 #
 # class User(SQLModel, table=True):
-#     id: Optional[int] = Field(default=None, primary_key=True)
+#     id: UUID = Field(server_default=sa.text('uuidv7()'), primary_key=True)
 #     email: str = Field(unique=True, index=True)
 #     name: str
-#     created_at: datetime = Field(default_factory=datetime.utcnow)
+#     created_at: datetime = Field(server_default=text('now()'), nullable=False)
 #
 #
 # # Define your database functions here. Example:

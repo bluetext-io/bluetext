@@ -16,6 +16,10 @@ USE_POSTGRES = False
 # When False, couchbase client will not be initialized
 USE_COUCHBASE = False
 
+# Set to True to auto-create Couchbase buckets, scopes, and collections
+# When False, will throw errors if resources don't exist
+COUCHBASE_AUTO_MIGRATE = False
+
 # Set to True to enable Temporal
 USE_TEMPORAL = False
 
