@@ -8,6 +8,7 @@ tools:
     run:
       - tool: polytope/postgres!simple
         args:
+          image: postgres:18
           data-volume: { id: postgres-data-{{ project-name }}, type: volume, scope: project }
 
   psql:
