@@ -3,16 +3,23 @@ import logging
 import asyncio
 import time
 from datetime import timedelta
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from dataclasses import dataclass
 
 from couchbase.auth import PasswordAuthenticator
 from couchbase.cluster import Cluster
 from couchbase.options import ClusterOptions, QueryOptions
-from couchbase.exceptions import DocumentNotFoundException, BucketNotFoundException
+from couchbase.exceptions import (
+    DocumentNotFoundException,
+    BucketNotFoundException,
+    BucketAlreadyExistsException,
+    ScopeNotFoundException,
+    ScopeAlreadyExistsException,
+    CollectionAlreadyExistsException,
+    CollectionNotFoundException
+)
 from couchbase.result import MutationResult
-
-from ..conf import USE_COUCHBASE
+from couchbase.management.buckets import CreateBucketSettings, BucketType
 
 logger = logging.getLogger(__name__)
 
@@ -75,28 +82,17 @@ class CouchbaseClient:
     Only initializes if USE_COUCHBASE is True in configuration.
     """
 
-    def __init__(self, config: Optional[CouchbaseConf] = None):
+    def __init__(self, config: CouchbaseConf, auto_create: bool = True):
         self._cluster = None
         self._config = config
-        self._initialized = False
         self._connected = False
         self._connection_task = None
         self._last_connection_error = None
         self._last_error_log_time = 0
-
-    async def initialize(self):
-        """Initialize the Couchbase client"""
-        if not self._config:
-            raise ValueError("CouchbaseConf required")
-
-        self._initialized = True
-        logger.info("Couchbase client initialized")
+        self._auto_create = auto_create
 
     async def init_connection(self):
         """Initialize connection with retry loop - call in background task"""
-        if not self._initialized:
-            return
-
         self._connection_task = asyncio.create_task(self._connection_retry_loop())
 
     async def _connection_retry_loop(self):
@@ -122,7 +118,6 @@ class CouchbaseClient:
         """Close the Couchbase client"""
         if self._cluster:
             self._cluster = None
-            self._initialized = False
             logger.info("Couchbase client closed")
 
     def _create_cluster(self):
@@ -138,40 +133,51 @@ class CouchbaseClient:
 
         return cluster
 
-    def _ensure_initialized(self):
-        """Ensure client is initialized"""
-        if not self._initialized:
-            raise RuntimeError("Couchbase client not initialized")
-
-    async def _ensure_connected(self):
+    async def _await_connected(self):
         """Ensure client is connected (blocks until connected)"""
-        self._ensure_initialized()
         while not self._connected:
             await asyncio.sleep(0.1)  # Wait for connection
 
     async def get_cluster(self):
         """Get the cached cluster connection"""
-        await self._ensure_connected()
+        await self._await_connected()
         return self._cluster
 
-    def get_keyspace(self, collection_name: str, scope_name: str = "_default", bucket_name: Optional[str] = None) -> Keyspace:
+    def get_keyspace(
+        self,
+        collection_name: str,
+        scope_name: str = "_default",
+        bucket_name: Optional[str] = None
+    ) -> Keyspace:
         """Create a Keyspace instance for database operations"""
-        self._ensure_initialized()
         if bucket_name is None:
             bucket_name = self._config.bucket
         return Keyspace(bucket_name, scope_name, collection_name)
 
     async def get_collection(self, keyspace: Keyspace):
-        """Get a Couchbase Collection object from keyspace"""
+        """Get a Couchbase Collection object from keyspace - auto-create if auto_create is True"""
         cluster = await self.get_cluster()
+
+        if self._auto_create:
+            await self._ensure_bucket_exists(keyspace.bucket_name)
+            await self._ensure_scope_exists(keyspace.bucket_name, keyspace.scope_name)
+            await self._ensure_collection_exists(keyspace)
+
         bucket = cluster.bucket(keyspace.bucket_name)
+
         scope = bucket.scope(keyspace.scope_name)
+
         return scope.collection(keyspace.collection_name)
+
 
     async def insert_document(self, keyspace: Keyspace, document: Dict[str, Any], key: Optional[str] = None) -> str:
         """Insert a document into a collection"""
         if key is None:
             key = str(uuid.uuid4())
+
+        # Auto-serialize Pydantic models
+        if hasattr(document, 'model_dump'):
+            document = document.model_dump(mode='json')
 
         collection = await self.get_collection(keyspace)
         collection.insert(key, document)
@@ -197,6 +203,10 @@ class CouchbaseClient:
 
     async def upsert_document(self, keyspace: Keyspace, key: str, document: Dict[str, Any]) -> str:
         """Insert or update a document (upsert operation)"""
+        # Auto-serialize Pydantic models
+        if hasattr(document, 'model_dump'):
+            document = document.model_dump(mode='json')
+
         collection = await self.get_collection(keyspace)
         collection.upsert(key, document)
         return key
@@ -234,24 +244,155 @@ class CouchbaseClient:
         results = await self.query_documents(query)
         return results[0]['count'] if results else 0
 
-    async def bulk_insert(self, keyspace: Keyspace, documents: List[Dict[str, Any]], keys: Optional[List[str]] = None) -> List[str]:
-        """Insert multiple documents in bulk"""
-        if keys is None:
-            keys = [str(uuid.uuid4()) for _ in documents]
-        elif len(keys) != len(documents):
-            raise ValueError("Number of keys must match number of documents")
+    # N1QL Query Helpers - Use these to avoid common query mistakes
+    #
+    # Example usage:
+    #   # List users with pagination
+    #   keyspace = client.get_keyspace("users")
+    #   query = client.build_list_query(keyspace, limit=50, offset=0)
+    #   results = await client.query_documents(query)
+    #
+    #   # Search users by name/email
+    #   query, params = client.build_search_query(keyspace, ["name", "email"], "john")
+    #   results = await client.query_documents(query, params)
+    #
+    #   # Filter active users
+    #   query = client.build_filter_query(keyspace, "u.is_active = true", limit=100)
+    #   results = await client.query_documents(query)
 
-        collection = await self.get_collection(keyspace)
-        for key, document in zip(keys, documents):
-            collection.insert(key, document)
+    def build_list_query(self, keyspace: Keyspace, limit: int = 100, offset: int = 0,
+                        order_by: str = "created_at DESC") -> str:
+        """Build standardized list query with proper ID handling"""
+        collection_alias = keyspace.collection_name[0]  # Use first letter as alias
+        return f"""
+            SELECT META().id as id, {collection_alias}.*
+            FROM `{keyspace.bucket_name}`.`{keyspace.scope_name}`.`{keyspace.collection_name}` {collection_alias}
+            ORDER BY {collection_alias}.{order_by}
+            LIMIT {limit} OFFSET {offset}
+        """
 
-        return keys
+    def build_filter_query(self, keyspace: Keyspace, where_clause: str,
+                          order_by: str = "created_at DESC", limit: Optional[int] = None) -> str:
+        """Build standardized filter query with proper ID handling"""
+        collection_alias = keyspace.collection_name[0]  # Use first letter as alias
+        limit_clause = f" LIMIT {limit}" if limit else ""
+        return f"""
+            SELECT META().id as id, {collection_alias}.*
+            FROM `{keyspace.bucket_name}`.`{keyspace.scope_name}`.`{keyspace.collection_name}` {collection_alias}
+            WHERE {where_clause}
+            ORDER BY {collection_alias}.{order_by}{limit_clause}
+        """
+
+    def build_search_query(self, keyspace: Keyspace, search_fields: List[str],
+                          search_term: str, limit: int = 10) -> tuple[str, Dict[str, Any]]:
+        """Build standardized search query with proper ID handling"""
+        collection_alias = keyspace.collection_name[0]  # Use first letter as alias
+
+        # Build LIKE conditions for each field
+        conditions = []
+        for field in search_fields:
+            conditions.append(f"LOWER({collection_alias}.{field}) LIKE LOWER($search)")
+
+        where_clause = " OR ".join(conditions)
+
+        query = f"""
+            SELECT META().id as id, {collection_alias}.*
+            FROM `{keyspace.bucket_name}`.`{keyspace.scope_name}`.`{keyspace.collection_name}` {collection_alias}
+            WHERE {where_clause}
+            ORDER BY {collection_alias}.created_at DESC
+            LIMIT {limit}
+        """
+
+        search_pattern = f"%{search_term}%"
+        parameters = {"search": search_pattern}
+
+        return query, parameters
+
+    async def _ensure_bucket_exists(self, bucket_name: str):
+        """Ensure a bucket exists, create it if it doesn't"""
+        cluster = await self.get_cluster()
+        bucket_manager = cluster.buckets()
+
+        try:
+            # Check if bucket exists
+            bucket_manager.get_bucket(bucket_name)
+            logger.debug(f"Bucket '{bucket_name}' already exists")
+        except BucketNotFoundException:
+            # Bucket doesn't exist - create it
+            logger.info(f"Auto-creating bucket: {bucket_name}")
+            try:
+                settings = CreateBucketSettings(
+                    name=bucket_name,
+                    bucket_type=BucketType.COUCHBASE,
+                    ram_quota_mb=256  # Default RAM quota, adjust as needed
+                )
+                bucket_manager.create_bucket(settings)
+                logger.info(f"Successfully created bucket: {bucket_name}")
+                # Wait a moment for bucket to be ready
+                await asyncio.sleep(2)
+            except BucketAlreadyExistsException:
+                # Race condition - another process created it
+                logger.info(f"Bucket already exists (race condition): {bucket_name}")
+            except Exception as e:
+                logger.error(f"Failed to create bucket {bucket_name}: {e}")
+                raise
+
+    async def _ensure_scope_exists(self, bucket_name: str, scope_name: str):
+        """Ensure a scope exists, create it if it doesn't"""
+        if scope_name == "_default":
+            # Default scope always exists
+            return
+
+        cluster = await self.get_cluster()
+        bucket = cluster.bucket(bucket_name)
+        collection_manager = bucket.collections()
+
+        try:
+            # Get all scopes to check if our scope exists
+            scopes = collection_manager.get_all_scopes()
+            scope_exists = any(scope.name == scope_name for scope in scopes)
+
+            if not scope_exists:
+                logger.info(f"Auto-creating scope: {scope_name} in bucket: {bucket_name}")
+                try:
+                    collection_manager.create_scope(scope_name)
+                    logger.info(f"Successfully created scope: {scope_name}")
+                    # Wait a moment for scope to be ready
+                    await asyncio.sleep(1)
+                except ScopeAlreadyExistsException:
+                    # Race condition - another process created it
+                    logger.info(f"Scope already exists (race condition): {scope_name}")
+                except Exception as e:
+                    logger.error(f"Failed to create scope {scope_name}: {e}")
+                    raise
+            else:
+                logger.debug(f"Scope '{scope_name}' already exists in bucket '{bucket_name}'")
+        except Exception as e:
+            logger.error(f"Failed to check/create scope {scope_name}: {e}")
+            raise
+
+
+    async def _ensure_collection_exists(self, keyspace: Keyspace) -> bool:
+        """Helper method to create a collection if it doesn't exist"""
+        cluster = await self.get_cluster()
+        bucket = cluster.bucket(keyspace.bucket_name)
+        collection_manager = bucket.collections()
+
+        try:
+            collection_manager.create_collection(
+                scope_name=keyspace.scope_name,
+                collection_name=keyspace.collection_name
+            )
+            logger.info(f"Successfully created collection: {keyspace}")
+            return True
+        except CollectionAlreadyExistsException:
+            return False
+        except Exception as e:
+            logger.error(f"Failed to create collection {keyspace}: {e}")
+            raise
 
     def health_check(self) -> Dict[str, Any]:
         """Check if Couchbase connection is healthy (non-blocking for health endpoints)"""
-        if not self._initialized:
-            return {"connected": False, "status": "not_initialized"}
-
         if not self._connected:
             return {
                 "connected": False,
