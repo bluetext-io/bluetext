@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
         await app.state.couchbase_client.initialize()
         await app.state.couchbase_client.init_connection()
 
+        # Import and initialize all Couchbase collections
+        from .couchbase.collections import COLLECTIONS
+        for Collection in COLLECTIONS:
+            await Collection(app.state.couchbase_client).initialize()
+
+
     # Initialize auth client if enabled
     if conf.USE_AUTH:
         from .utils import auth
