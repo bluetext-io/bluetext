@@ -1,41 +1,87 @@
 # {{ project-name }}
 
-A FastAPI app with support for both PostgreSQL and Couchbase with generic helper functions for rapid development.
+FastAPI template with PostgreSQL, Couchbase, Temporal, and Twilio support - designed for instant hot reload development.
 
-## 🚀 Running the API
+## Development Notes
 
-**The API is automatically started when you created it using `add-{{ project-name }}`.**
+**The server runs with hot reload enabled** - Your changes are automatically applied when you save files. No manual restarts needed.
 
-To inspect which steps run, use: `list-services-in-job`
-To view logs, use: `get-logs-in-job{"step":"backend"}`
+**ALWAYS check logs after making changes**: After any code change, verify it worked by checking the server logs:
+```mcp
+__polytope__get_container_logs(container: {{ project-name }}, limit: 50)
+```
+Look for import errors, syntax errors, or runtime exceptions. The hot reload will show if your code loaded successfully or if there are any errors.
 
-**Do not manually run the `{{ project-name }}` module - it's already running by calling `add-{{ project-name }}`.**
+**Note**: If this project was created using the `add-api` tool, your API service runs in a container that you can access and observe through MCP commands.
 
-## 🧰 Available Development Tools
+## Quick Start
 
-{{ project-name }}-lint      # Run linting checks
-{{ project-name }}-format    # Format code
-{{ project-name }}-validate  # Development validation
+```mcp
+# Check service status
+__polytope__list_services()
 
-execute like:
-`run("module": "{{ project-name }}-validate", "args": [])`
+# View recent logs
+__polytope__get_container_logs(container: {{ project-name }}, limit: 50)
 
-validate will check for common issues like:
-- Python version compatibility
-- UUID usage patterns
-- Enum value conventions
-- Temporal workflow patterns
-- Database type consistency
+# Test the API
+curl http://localhost:3030/health
+```
 
+## API Endpoints
 
-## ⚠️ CRITICAL PATTERNS - Avoid Common Mistakes
+### Active Endpoints
+- Health check: `GET /health` - Comprehensive health check with service status
 
-### Database Models
-- ✅ **Use UUID7 primary keys**: `id: str = pk_field()`
-- ✅ **Enum values lowercase**: `STATUS = "active"` (not `"ACTIVE"`)
-- ✅ **API responses use strings**: `"id": str(model.id)`
-- ❌ **Never call `session.flush()`** in database functions - causes "NULL identity key" errors
-- ✅ **Let DBSession auto-commit** - no manual commits needed
+### Example Endpoints (commented out)
+The template includes commented-out example routes for:
+- PostgreSQL user management
+- Couchbase user operations
+- Temporal workflow execution
+- Twilio SMS sending
+
+Uncomment and adapt these examples in `src/backend/routes/base.py` as needed.
+
+## Setting Up Features
+
+### PostgreSQL Database
+1. Enable in `src/backend/conf.py`:
+```python
+USE_POSTGRES = True
+```
+
+2. Check logs to verify connection:
+```mcp
+__polytope__get_container_logs(container: {{ project-name }}, limit: 50)
+```
+
+3. Test database health via health endpoint:
+```bash
+curl http://localhost:3030/health
+```
+
+4. Add database routes in `src/backend/routes/base.py`:
+```python
+from ..utils import DBSession
+
+@router.post("/test-db")
+async def test_database(session: DBSession):
+    # DBSession auto-commits - NEVER call session.commit()
+    return {"status": "connected"}
+```
+
+### Authentication
+1. Enable: `USE_AUTH = True` in `conf.py`
+2. Configure JWT authentication in environment/config (JWK URL, audience, etc.)
+3. Protect any route by adding `RequestPrincipal` as a dependency - this validates JWT tokens from Authorization headers:
+```python
+from ..utils import RequestPrincipal
+
+@router.get("/protected")
+async def protected_route(principal: RequestPrincipal):
+    # principal.claims contains the decoded JWT claims
+    return {"claims": principal.claims}
+```
+4. Clients must send requests with `Authorization: Bearer <jwt-token>` header
 
 ### Temporal Workflows
 1. Enable: `USE_TEMPORAL = True` in `conf.py`
@@ -61,37 +107,40 @@ Quick Setup - ALWAYS follow this pattern for new Couchbase collections:
 5. Customize the model in the generated file (DO NOT create manually)
 6. Uncomment example routes in `routes/base.py`
 
-**For Couchbase:**
-1. Set USE_COUCHBASE=true in `src/backend/conf.py`.
-2. Build out the couchbase-related routes you want in `src/backend/routes.py` (there are example routes at the bottom).
+### SMS/Twilio
+1. Set Twilio environment variables
+2. Enable: `USE_TWILIO = True` in `conf.py`
+3. Uncomment SMS routes in `routes/base.py`
 
-**For Auth:**
-1. Set USE_AUTH=true in `src/backend/conf.py`.
-2. Use the `RequestPrincipal` dependency in your routes to protect them.
-3. Optionally, add custom variants of `RequestPrincipal` to filter on roles or similar.
+## Development Workflow
 
-**For Temporal:**
-1. Set USE_TEMPORAL=true in `src/backend/conf.py`.
-2. Uncomment the example routes in `src/backend/routes/base.py` to test workflows.
-3. Add your workflows and activities to `src/backend/workflows/` (see examples in `workflows/examples.py`).
-4. Register them in `src/backend/workflows/__init__.py` by adding to the WORKFLOWS and ACTIVITIES lists.
+1. **Make changes** - Edit any `.py` file
+2. **Check logs immediately**:
+   ```mcp
+   __polytope__get_container_logs(container: {{ project-name }}, limit: 50)
+   ```
+3. **Test changes** - `curl http://localhost:3030/your-route`
+4. **Fix errors before continuing** - Don't move on until it works
 
-**For Twilio SMS:**
-1. Set USE_TWILIO=true in `src/backend/conf.py`.
-2. Set the required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_PHONE_NUMBER.
-3. Uncomment the SMS routes in `src/backend/routes/base.py` to enable SMS functionality.
-4. Optionally combine with Temporal workflows for delayed/scheduled SMS messages.
+## Key Files
 
-**For Twilio SMS:**
-1. Set USE_TWILIO=true in `src/backend/conf.py`.
-2. Set the required environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_PHONE_NUMBER.
-3. Uncomment the SMS routes in `src/backend/routes/base.py` to enable SMS functionality.
-4. Optionally combine with Temporal workflows for delayed/scheduled SMS messages.
+- `src/backend/conf.py` - Feature toggles and configuration
+- `src/backend/routes/base.py` - Add your API endpoints here
+- `src/backend/routes/utils.py` - Database helpers (DBSession, RequestPrincipal)
+- `src/backend/workflows/` - Temporal workflow definitions
+- `polytope.yml` - Container and environment configuration
 
-## 🔧 Configuration
+## Debugging
 
-All configuration done via env vars using Polytope. Don't worry about it. If you add more environment variables that need to be set, add them to `polytope.yml` as well.
+**Always start with logs when something doesn't work:**
+```mcp
+__polytope__get_container_logs(container: {{ project-name }}, limit: 100)
+```
 
-## 🔍 Health Checks
+Common checks:
+1. **Service running**: `__polytope__list_services()`
+2. **Health endpoint**: `curl http://localhost:3030/health`
+3. **Configuration**: Check feature flags in `conf.py`
+4. **Hot reload status**: Look for reload messages in logs
 
-The template includes a health check endpoint that verifies database connectivity at `GET /health`.
+**Critical**: Hot reload means instant feedback - use it! Always check logs after saving files.
