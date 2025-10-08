@@ -38,43 +38,28 @@ validate will check for common issues like:
 - ✅ **Let DBSession auto-commit** - no manual commits needed
 
 ### Temporal Workflows
-- ✅ **Use `workflow.sleep()`** for delays: `await workflow.sleep(3)`
-- ✅ **Handle `wait_condition` correctly**: Don't check `if not result` after wait_condition
-- ❌ **Never use `asyncio.sleep()`** in workflows - breaks determinism
-- ✅ **Activities need own DB connection** - cannot access app state
-- ✅ **Use Pydantic models** for activity inputs/outputs
+1. Enable: `USE_TEMPORAL = True` in `conf.py`
+2. Add workflows to `src/backend/workflows/examples.py`
+3. Register workflows and activities in `src/backend/workflows/__init__.py`
+4. Uncomment workflow routes in `src/backend/routes/base.py`
 
-### API Response Handling
-- ✅ **Convert UUIDs to strings**: Use `UserResponse.from_model(user)` pattern
-- ✅ **Separate request/response models**: Don't use SQLModel directly in API responses
-- ✅ **Handle type conversions explicitly**: String IDs in URLs, UUID objects in database
+### Couchbase
 
-### Architecture Decisions
-- **Primary Keys**: UUID7 for uniqueness, ordering, and no auto-increment issues
-- **Database Sessions**: Auto-commit pattern prevents manual transaction management errors
-- **Temporal Integration**: Activities are stateless with dedicated connections
-- **Type Safety**: Explicit conversion between UUID and string types
+Quick Setup - ALWAYS follow this pattern for new Couchbase collections:
 
-## 🛠️ Development instructions
-
-**For PostgreSQL:**
-1. Set USE_POSTGRES=true in `src/backend/conf.py`.
-2. Build out the postgres-related routes you want in `src/backend/routes.py` (there are example routes at the bottom).
-3. **IMPORTANT**: Always use `DBSession` from `routes/utils.py` for database access in routes:
-   ```python
-   from .utils import DBSession
-   from ..db.utils import pk_field
-
-   class User(SQLModel, table=True):
-       id: str = pk_field()  # UUID7 primary key
-       email: str = Field(unique=True, index=True)
-
-   @router.post("/users")
-   async def create_user(user: User, session: DBSession):
-       # DBSession auto-commits - NEVER call session.commit() or session.flush()
-       return await create_user_db(session, user)
+1. Enable: `USE_COUCHBASE = True` in `conf.py`
+2. Add desired collections - Run this tool:
+   ```mcp
+   __polytope__run(module: "{{ project-name }}-add-couchbase-collection", args: {"name": "collection-name"})
    ```
-   **CRITICAL: Never call `session.flush()` in database functions - causes database errors!**
+   During initial setup, finish and verify this step before adding further services to the project.
+3. Check container logs to verify success:
+   ```mcp
+   __polytope__get_container_logs(container: {{ project-name }}, limit: 50)
+   ```
+4. Read the generated file at: `src/backend/couchbase/collections/<collection_name>.py`
+5. Customize the model in the generated file (DO NOT create manually)
+6. Uncomment example routes in `routes/base.py`
 
 **For Couchbase:**
 1. Set USE_COUCHBASE=true in `src/backend/conf.py`.
