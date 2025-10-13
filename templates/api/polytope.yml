@@ -62,6 +62,20 @@ tools:
           cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
 
+  {{ project-name }}-add-couchbase-library:
+    info: Add Couchbase library to the project by copying from bluetext source
+    run:
+      - tool: polytope/python
+        args:
+          id: {{ project-name }}-add-couchbase-library
+          image: bash:latest
+          cmd: cd /mnt/project && /mnt/bluetext/templates/api/bin/add-couchbase-library
+          restart:
+            policy: never
+          mounts:
+            - { path: /mnt/project, source: { type: repo } }
+            - { path: /mnt/bluetext, source: { type: host, path: ../../bluetext }, read-only: true }
+
   {{ project-name }}-add-couchbase-collection:
     info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
     params:
