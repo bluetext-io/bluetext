@@ -3,15 +3,31 @@
 
 set -e
 
-# Change to the api directory
-cd "$(dirname "$0")/.."
-
 # Function to echo (can be silenced)
 echoh() {
     if [ "${SILENT_OUTPUT:-}" != "true" ]; then
         echo "$@"
     fi
 }
+
+# Determine working directory
+if [ -d "/project" ]; then
+    # We're in a polytope container - work in the mounted project
+    cd /project
+    echoh "Working directory: /project"
+    echoh "Current directory contents:"
+    ls -la
+elif [ -d "/mnt/project" ]; then
+    # Legacy mount path
+    cd /mnt/project
+    echoh "Working directory: /mnt/project"
+    echoh "Current directory contents:"
+    ls -la
+else
+    # We're running locally - change to the api directory
+    cd "$(dirname "$0")/.."
+    echoh "Working directory: $(pwd)"
+fi
 
 # Check if lib/py/couchbase already exists
 if [ -d "lib/py/couchbase" ]; then
@@ -24,23 +40,50 @@ echoh ""
 
 # Try to find bluetext lib folder
 BLUETEXT_LIB=""
-if [ -d "/mnt/bluetext/lib/py/couchbase" ]; then
+if [ -d "/bluetext/lib/py/couchbase" ]; then
     # We're in a polytope container with bluetext mounted
+    BLUETEXT_LIB="/bluetext/lib/py/couchbase"
+    echoh "Found bluetext library at: $BLUETEXT_LIB"
+elif [ -d "/mnt/bluetext/lib/py/couchbase" ]; then
+    # Legacy mount path
     BLUETEXT_LIB="/mnt/bluetext/lib/py/couchbase"
+    echoh "Found bluetext library at: $BLUETEXT_LIB (legacy)"
 elif [ -d "../../lib/py/couchbase" ]; then
     # We're in bluetext/templates/api (development)
     BLUETEXT_LIB="../../lib/py/couchbase"
+    echoh "Found bluetext library at: $BLUETEXT_LIB (relative path)"
 elif [ -d "../../../lib/py/couchbase" ]; then
     # We might be in a different location
     BLUETEXT_LIB="../../../lib/py/couchbase"
+    echoh "Found bluetext library at: $BLUETEXT_LIB (relative path)"
+else
+    echoh "ERROR: Could not find bluetext library!"
+    echoh "Checked locations:"
+    echoh "  - /bluetext/lib/py/couchbase"
+    echoh "  - /mnt/bluetext/lib/py/couchbase"
+    echoh "  - ../../lib/py/couchbase"
+    echoh "  - ../../../lib/py/couchbase"
 fi
 
 # If we found the source lib, copy it
 if [ -n "$BLUETEXT_LIB" ] && [ -d "$BLUETEXT_LIB" ]; then
     echoh "📋 Copying Couchbase library from bluetext..."
+    echoh "Source: $BLUETEXT_LIB"
+    echoh "Destination: $(pwd)/lib/py/"
+    
     mkdir -p lib/py
-    cp -r "$BLUETEXT_LIB" lib/py/
-    echoh "✅ Copied lib/py/couchbase/"
+    cp -rv "$BLUETEXT_LIB" lib/py/
+    
+    # Verify the copy
+    if [ -d "lib/py/couchbase" ]; then
+        echoh "✅ Successfully copied lib/py/couchbase/"
+        echoh "Files created:"
+        ls -la lib/py/couchbase/
+    else
+        echoh "❌ ERROR: Copy failed - lib/py/couchbase/ does not exist after copy"
+        exit 1
+    fi
+    
     echoh ""
     echoh "📦 Couchbase library added successfully!"
     echoh ""
