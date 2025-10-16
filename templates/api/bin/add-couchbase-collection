@@ -53,7 +53,7 @@ Bindings for working with the '${snake_name}' collection.
 from pydantic import BaseModel
 from uuid import UUID
 
-from ...clients.couchbase import CouchbaseClient
+from couchbase import CouchbaseClient
 
 
 # The type used for keys in this collection.
@@ -195,6 +195,17 @@ main() {
 
     echoh "📦 Creating Couchbase collection: $collection_name"
     echoh ""
+
+    # Ensure couchbase library is installed first
+    if [ ! -d "lib/py/couchbase" ]; then
+        echoh "📚 Couchbase library not found. Adding it first..."
+        echoh ""
+        ./bin/add-couchbase-library
+        echoh ""
+    else
+        echoh "✓ Couchbase library already present"
+        echoh ""
+    fi
 
     # Convert collection name to snake_case for file paths
     local snake_name=$(kebab_to_snake "$collection_name")

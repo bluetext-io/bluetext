@@ -1,3 +1,5 @@
+import sys
+from pathlib import Path
 import uvicorn
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,6 +7,11 @@ from fastapi import FastAPI
 from .utils import log
 from .routes.base import router
 from . import conf
+
+# Add lib/py to Python path for custom libraries (like couchbase)
+lib_path = Path(__file__).parent.parent.parent / "lib" / "py"
+if lib_path.exists() and str(lib_path) not in sys.path:
+    sys.path.insert(0, str(lib_path))
 
 log.init(conf.get_log_level())
 logger = log.get_logger(__name__)
@@ -29,15 +36,19 @@ async def lifespan(app: FastAPI):
 
     # Initialize Couchbase client if enabled
     if conf.USE_COUCHBASE:
-        from .clients.couchbase import CouchbaseClient
-        couchbase_config = conf.get_couchbase_conf()
-        app.state.couchbase_client = CouchbaseClient(couchbase_config)
-        await app.state.couchbase_client.init_connection()
+        try:
+            from couchbase import CouchbaseClient, CouchbaseConf
+            couchbase_config = conf.get_couchbase_conf()
+            app.state.couchbase_client = CouchbaseClient(couchbase_config)
+            await app.state.couchbase_client.init_connection()
 
-        # Import and initialize all Couchbase collections
-        from .couchbase.collections import COLLECTIONS
-        for Collection in COLLECTIONS:
-            await Collection(app.state.couchbase_client).initialize()
+            # Import and initialize all Couchbase collections
+            from .couchbase.collections import COLLECTIONS
+            for Collection in COLLECTIONS:
+                await Collection(app.state.couchbase_client).initialize()
+        except ImportError:
+            logger.error("Couchbase library not found. Run add-couchbase-library to add it.")
+            raise
 
 
     # Initialize auth client if enabled

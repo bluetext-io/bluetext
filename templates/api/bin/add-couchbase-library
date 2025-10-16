@@ -10,22 +10,51 @@ echoh() {
     fi
 }
 
-# Determine working directory
+# Determine working directory and locate pyproject.toml
+PROJECT_ROOT=""
+PYPROJECT_PATH=""
+
 if [ -d "/project" ]; then
     # We're in a polytope container - work in the mounted project
+    PROJECT_ROOT="/project"
     cd /project
     echoh "Working directory: /project"
     echoh "Current directory contents:"
     ls -la
+
+    # Find pyproject.toml location (may be in subdirectory for multi-module projects)
+    if [ -f "pyproject.toml" ]; then
+        PYPROJECT_PATH="pyproject.toml"
+        echoh "Found pyproject.toml at project root"
+    elif [ -f "modules/api/pyproject.toml" ]; then
+        PYPROJECT_PATH="modules/api/pyproject.toml"
+        echoh "Found pyproject.toml at modules/api/"
+    elif [ -f "api/pyproject.toml" ]; then
+        PYPROJECT_PATH="api/pyproject.toml"
+        echoh "Found pyproject.toml at api/"
+    else
+        # Try to find it
+        FOUND_TOML=$(find . -maxdepth 3 -name "pyproject.toml" -type f | head -n 1)
+        if [ -n "$FOUND_TOML" ]; then
+            PYPROJECT_PATH="$FOUND_TOML"
+            echoh "Found pyproject.toml at $FOUND_TOML"
+        else
+            echoh "⚠️  Warning: pyproject.toml not found"
+        fi
+    fi
 elif [ -d "/mnt/project" ]; then
     # Legacy mount path
+    PROJECT_ROOT="/mnt/project"
     cd /mnt/project
     echoh "Working directory: /mnt/project"
     echoh "Current directory contents:"
     ls -la
+    PYPROJECT_PATH="pyproject.toml"
 else
     # We're running locally - change to the api directory
     cd "$(dirname "$0")/.."
+    PROJECT_ROOT="$(pwd)"
+    PYPROJECT_PATH="pyproject.toml"
     echoh "Working directory: $(pwd)"
 fi
 
@@ -92,7 +121,48 @@ if [ -n "$BLUETEXT_LIB" ] && [ -d "$BLUETEXT_LIB" ]; then
     echoh "  - CouchbaseConf: Configuration dataclass"
     echoh "  - Keyspace: Helper for bucket.scope.collection operations"
     echoh ""
-    echoh "Next step: Add the couchbase dependency to pyproject.toml"
+
+    # Add couchbase dependency to pyproject.toml
+    echoh "📝 Adding couchbase dependency to pyproject.toml..."
+    if [ -n "$PYPROJECT_PATH" ] && [ -f "$PYPROJECT_PATH" ]; then
+        # Check if couchbase is already in dependencies
+        if grep -q '"couchbase' "$PYPROJECT_PATH"; then
+            echoh "✓ couchbase dependency already in pyproject.toml"
+        else
+            # Add couchbase to dependencies list
+            # Using Python to safely edit the TOML file
+            python3 << PYTHON_SCRIPT
+import sys
+import re
+
+# Read the file
+with open('$PYPROJECT_PATH', 'r') as f:
+    content = f.read()
+
+# Check if couchbase is already there
+if 'couchbase' in content:
+    print("✓ couchbase dependency already present")
+    sys.exit(0)
+
+# Find dependencies array and add couchbase at the beginning
+pattern = r'(dependencies\s*=\s*\[)\s*\n'
+replacement = r'\1\n    "couchbase>=4.4.0",\n'
+
+new_content = re.sub(pattern, replacement, content)
+
+if new_content != content:
+    with open('$PYPROJECT_PATH', 'w') as f:
+        f.write(new_content)
+    print("✅ Added couchbase>=4.4.0 to pyproject.toml")
+else:
+    print("⚠️  Could not add couchbase to pyproject.toml automatically")
+    sys.exit(1)
+PYTHON_SCRIPT
+        fi
+    else
+        echoh "⚠️  pyproject.toml not found at $PYPROJECT_PATH"
+    fi
+
     exit 0
 fi
 
@@ -663,4 +733,44 @@ echoh "  - CouchbaseClient: Full-featured async Couchbase client"
 echoh "  - CouchbaseConf: Configuration dataclass"
 echoh "  - Keyspace: Helper for bucket.scope.collection operations"
 echoh ""
-echoh "Next step: Add the couchbase dependency to pyproject.toml"
+
+# Add couchbase dependency to pyproject.toml
+echoh "📝 Adding couchbase dependency to pyproject.toml..."
+if [ -n "$PYPROJECT_PATH" ] && [ -f "$PYPROJECT_PATH" ]; then
+    # Check if couchbase is already in dependencies
+    if grep -q '"couchbase' "$PYPROJECT_PATH"; then
+        echoh "✓ couchbase dependency already in pyproject.toml"
+    else
+        # Add couchbase to dependencies list
+        # Using Python to safely edit the TOML file
+        python3 << PYTHON_SCRIPT
+import sys
+import re
+
+# Read the file
+with open('$PYPROJECT_PATH', 'r') as f:
+    content = f.read()
+
+# Check if couchbase is already there
+if 'couchbase' in content:
+    print("✓ couchbase dependency already present")
+    sys.exit(0)
+
+# Find dependencies array and add couchbase at the beginning
+pattern = r'(dependencies\s*=\s*\[)\s*\n'
+replacement = r'\1\n    "couchbase>=4.4.0",\n'
+
+new_content = re.sub(pattern, replacement, content)
+
+if new_content != content:
+    with open('$PYPROJECT_PATH', 'w') as f:
+        f.write(new_content)
+    print("✅ Added couchbase>=4.4.0 to pyproject.toml")
+else:
+    print("⚠️  Could not add couchbase to pyproject.toml automatically")
+    sys.exit(1)
+PYTHON_SCRIPT
+    fi
+else
+    echoh "⚠️  pyproject.toml not found at $PYPROJECT_PATH"
+fi
