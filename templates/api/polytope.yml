@@ -62,6 +62,17 @@ tools:
           cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
 
+  {{ project-name }}-add-couchbase-client:
+    info: Copies the Couchbase-client code from Bluetext and places it in the generated projects new lib folder
+    run:
+      - tool: polytope/scaffold
+        id: add-couchbase-client
+        args:
+          actions:
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: templates/lib/py/couchbase-client}
+              path: lib/py/charascters
+              on-conflict: skip
+
   {{ project-name }}-add-couchbase-collection:
     info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
     params:
