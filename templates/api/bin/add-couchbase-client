@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Add the couchbase-client library as an editable dependency
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+echo "📦 Adding couchbase-client library as editable dependency..."
+
+./bin/uv add --editable ../lib/py/couchbase-client
+
+echo "✅ Couchbase client library added successfully!"
+echo ""
+echo "You can now import it in your code:"
+echo "  from couchbase_client import CouchbaseClient"

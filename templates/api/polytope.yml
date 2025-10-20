@@ -70,8 +70,20 @@ tools:
         args:
           actions:
             - template: {type: repo, repo: "bluetext-io/bluetext", path: templates/lib/py/couchbase-client}
-              path: lib/py/charascters
+              path: lib/py/couchbase-client
               on-conflict: skip
+      
+      - tool: polytope/python
+        after: { step: add-couchbase-client }
+        args:
+          id: {{ project-name }}-add-couchbase-client
+          image: astral/uv:python3.13-bookworm-slim
+          code: { type: repo, path: ., repo: "#pt-clj pt/module-project-ref" }
+          cmd: bash #./bin/add-couchbase-client
+          restart:
+            policy: never
+          mounts:
+            - { path: /lib/, source: { type: repo, path: /lib/, repo: "#pt-clj pt/module-project-ref" } }
 
   {{ project-name }}-add-couchbase-collection:
     info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
