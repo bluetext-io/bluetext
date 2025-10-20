@@ -48,6 +48,7 @@ tools:
             - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
           mounts:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
+            - { path: /lib/py, source: { type: repo, path: /lib/py, repo: "#pt-clj pt/module-project-ref" } }
   {{ project-name }}-add:
     info: Adds one or more packages to the pyproject.toml file.
     params:
@@ -58,8 +59,8 @@ tools:
       - tool: {{ project-name }}
         args:
           id: {{ project-name }}-add
-          restart-policy: on-failure
-          cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
+          restart-policy: never
+          cmd: '#pt-js "./bin/add-dependencies " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
 
   {{ project-name }}-add-couchbase-client:
@@ -72,18 +73,13 @@ tools:
             - template: {type: repo, repo: "bluetext-io/bluetext", path: templates/lib/py/couchbase-client}
               path: lib/py/couchbase-client
               on-conflict: skip
-      
-      - tool: polytope/python
+
+      - tool: {{ project-name }}
         after: { step: add-couchbase-client }
         args:
-          id: {{ project-name }}-add-couchbase-client
-          image: astral/uv:python3.13-bookworm-slim
-          code: { type: repo, path: ., repo: "#pt-clj pt/module-project-ref" }
-          cmd: bash #./bin/add-couchbase-client
-          restart:
-            policy: never
-          mounts:
-            - { path: /lib/, source: { type: repo, path: /lib/, repo: "#pt-clj pt/module-project-ref" } }
+          id: api-add-couchbase-client
+          cmd: ./bin/add-couchbase-client
+          restart-policy: never
 
   {{ project-name }}-add-couchbase-collection:
     info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
