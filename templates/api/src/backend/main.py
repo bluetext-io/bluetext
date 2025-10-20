@@ -5,12 +5,28 @@ from fastapi import FastAPI
 from .utils import log
 from .routes.base import router
 from . import conf
+import init
 
 log.init(conf.get_log_level())
 logger = log.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init.init_logging()
+
+    init.init_couchbase(app)
+    init.init_postgres(app)
+    init.init_temporal(app)
+    init.init_auth(app)
+
+    pass
+
+    init.deinit_couchbase(app)
+    init.deinit_postgres(app)
+    init.deinit_temporal(app)
+    init.deinit_auth(app)
+
+
     # Initialize PostgreSQL client if enabled
     if conf.USE_POSTGRES:
         from .clients.postgres import PostgresClient
