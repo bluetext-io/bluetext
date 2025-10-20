@@ -179,6 +179,34 @@ update_collections_init() {
     echoh "📝 Registered collection in $init_file"
 }
 
+# Function to ensure collections directory and __init__.py exist
+ensure_collections_structure() {
+    # Create collections directory if it doesn't exist
+    if [ ! -d "$collections_dir" ]; then
+        mkdir -p "$collections_dir"
+        echoh "📁 Created collections directory: $collections_dir"
+    fi
+
+    # Create __init__.py if it doesn't exist
+    local init_file="${collections_dir}/__init__.py"
+    if [ ! -f "$init_file" ]; then
+        cat > "$init_file" << 'EOF'
+"""
+Couchbase collection bindings.
+
+All collection classes should be imported here.
+"""
+# Import all collection classes here
+# They will be auto-added by the add-couchbase-collection tool
+
+# Export all collections
+COLLECTIONS = [
+]
+EOF
+        echoh "📄 Created collections __init__.py: $init_file"
+    fi
+}
+
 # Main script
 main() {
     # Parse arguments
@@ -195,6 +223,10 @@ main() {
 
     echoh "📦 Creating Couchbase collection: $collection_name"
     echoh ""
+
+    # Ensure collections directory structure exists
+    ensure_collections_structure
+
 
     # Convert collection name to snake_case for file paths
     local snake_name=$(kebab_to_snake "$collection_name")
