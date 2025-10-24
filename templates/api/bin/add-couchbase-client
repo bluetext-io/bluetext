@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 
 echo "📦 Adding couchbase-client library as editable dependency..."
 
-./bin/add-dependencies --editable ../lib/py/couchbase-client
+$(dirname "$0")/uv add --editable ../lib/py/couchbase-client
 
 # config with env vars
 # init and deinit client
@@ -17,4 +17,3 @@ echo "✅ Couchbase client library added successfully!"
 echo ""
 echo "You can now import it in your code:"
 echo "  from couchbase_client import CouchbaseClient"
-

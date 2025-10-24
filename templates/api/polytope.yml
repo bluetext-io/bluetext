@@ -70,8 +70,8 @@ tools:
         id: add-couchbase-client
         args:
           actions:
-            - template: {type: repo, repo: "bluetext-io/bluetext", path: templates/lib/py/couchbase-client}
-              path: lib/py/couchbase-client
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/couchbase-client}
+              path: /lib/py/couchbase-client
               on-conflict: skip
 
       - tool: {{ project-name }}
