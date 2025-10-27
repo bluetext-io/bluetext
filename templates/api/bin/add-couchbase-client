@@ -14,6 +14,32 @@ $(dirname "$0")/uv add --editable ../lib/py/couchbase-client
 # init and deinit client
 
 echo "✅ Couchbase client library added successfully!"
+
+# Add the add-couchbase-collection tool to polytope.yml if it doesn't already exist
+if ! grep -q "{{ project-name }}-add-couchbase-collection:" polytope.yml; then
+    echo ""
+    echo "📝 Adding add-couchbase-collection tool to polytope.yml..."
+    
+    cat >> polytope.yml << 'EOF'
+
+  {{ project-name }}-add-couchbase-collection:
+    info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
+    params:
+      - id: name
+        info: Scaffolds a new Couchbase collection with CRUD operations, Pydantic models, and automatic integration.
+        type: str
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add-couchbase-collection
+          restart-policy: never
+          cmd: ./bin/add-couchbase-collection {pt.param name}
+          create: always
+EOF
+    
+    echo "✅ Added add-couchbase-collection tool to polytope.yml"
+fi
+
 echo ""
 echo "You can now import it in your code:"
 echo "  from couchbase_client import CouchbaseClient"

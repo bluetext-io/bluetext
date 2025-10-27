@@ -73,6 +73,9 @@ tools:
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/couchbase-client}
               path: /lib/py/couchbase-client
               on-conflict: skip
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-couchbase-collection}
+              path: /modules/api/bin/add-couchbase-collection
+              on-conflict: skip
 
       - tool: {{ project-name }}
         after: { step: add-couchbase-client }
@@ -80,17 +83,3 @@ tools:
           id: api-add-couchbase-client
           cmd: ./bin/add-couchbase-client
           restart-policy: never
-
-  {{ project-name }}-add-couchbase-collection:
-    info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
-    params:
-      - id: name
-        info: Scaffolds a new Couchbase collection with CRUD operations, Pydantic models, and automatic integration.
-        type: str
-    run:
-      - tool: {{ project-name }}
-        args:
-          id: {{ project-name }}-add-couchbase-collection
-          restart-policy: never
-          cmd: ./bin/add-couchbase-collection {pt.param name}
-          create: always
