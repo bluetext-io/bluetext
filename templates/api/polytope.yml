@@ -64,7 +64,7 @@ tools:
           create: always
 
   {{ project-name }}-add-couchbase-client:
-    info: Copies the Couchbase-client code from Bluetext and places it in the generated projects new lib folder
+    info: Run before add-couchbase-collection. Adds Couchbase client library with all interaction functions and registers add-couchbase-collection tool to polytope.yml.
     params: []
     run:
       - tool: polytope/scaffold
