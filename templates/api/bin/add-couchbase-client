@@ -141,6 +141,43 @@ EOF
 
 echo "✅ Created src/backend/conf/couchbase.py"
 
+# Create the init directory if it doesn't exist
+mkdir -p src/backend/init
+
+# Create the __init__.py file for the init module if it doesn't exist
+if [ ! -f src/backend/init/__init__.py ]; then
+    touch src/backend/init/__init__.py
+    echo "✅ Created src/backend/init/__init__.py"
+fi
+
+# Create the couchbase init file
+echo ""
+echo "📝 Creating Couchbase initialization file..."
+
+cat > src/backend/init/couchbase.py << 'EOF'
+from fastapi import FastAPI
+
+from bluetext.couchbase_client import CouchbaseClient
+
+from ..couchbase.collections import COLLECTIONS
+from ..conf.couchbase import get_couchbase_conf
+
+async def init(app: FastAPI):
+    """Initialize Couchbase client and collections."""
+    couchbase_config = get_couchbase_conf()
+    app.state.couchbase_client = CouchbaseClient(couchbase_config)
+    await app.state.couchbase_client.init_connection()
+
+    for Collection in COLLECTIONS:
+        await Collection(app.state.couchbase_client).initialize()
+
+async def deinit(app: FastAPI):
+    """Close Couchbase client connection."""
+    await app.state.couchbase_client.close()
+EOF
+
+echo "✅ Created src/backend/init/couchbase.py"
+
 # Update the main conf.py file to import couchbase configuration
 echo ""
 echo "📝 Updating src/backend/conf.py to include Couchbase configuration..."
@@ -169,7 +206,81 @@ else
     echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf.py"
 fi
 
+# Update main.py to use the init module
 echo ""
-echo "You can now import it in your code:"
-echo "  from couchbase_client import CouchbaseClient"
-echo "  from src.backend.conf.couchbase import get_couchbase_conf"
+echo "📝 Updating main.py to use the couchbase init module..."
+
+# Check if the import already exists
+if ! grep -q "from \.init import couchbase" src/backend/main.py; then
+    # Add the import after the existing imports (after from . import conf)
+    sed -i '' '/from \. import conf/a\
+from .init import couchbase
+' src/backend/main.py
+    echo "✅ Added couchbase init import to main.py"
+else
+    echo "ℹ️  Couchbase init import already exists in main.py"
+fi
+
+# Replace the inline couchbase initialization with the init module call
+# First, check if the old pattern exists (inline initialization)
+if grep -q "from \.clients\.couchbase import CouchbaseClient" src/backend/main.py; then
+    echo "📝 Replacing inline Couchbase initialization with init module..."
+
+    # Create a temporary file with the updated content
+    awk '
+    BEGIN { in_couchbase_block = 0; found_couchbase_if = 0 }
+
+    # Detect the start of the Couchbase initialization block
+    /if conf\.USE_COUCHBASE:/ {
+        if (!found_couchbase_if) {
+            found_couchbase_if = 1
+            in_couchbase_block = 1
+            print "    # Initialize Couchbase client if enabled"
+            print "    if conf.USE_COUCHBASE:"
+            print "        await couchbase.init(app)"
+            print ""
+            next
+        }
+    }
+
+    # Skip lines in the Couchbase initialization block
+    in_couchbase_block && /^[[:space:]]*from \.clients\.couchbase import CouchbaseClient/ { next }
+    in_couchbase_block && /^[[:space:]]*couchbase_config = conf\.get_couchbase_conf\(\)/ { next }
+    in_couchbase_block && /^[[:space:]]*app\.state\.couchbase_client = CouchbaseClient/ { next }
+    in_couchbase_block && /^[[:space:]]*await app\.state\.couchbase_client\.init_connection\(\)/ { next }
+    in_couchbase_block && /^[[:space:]]*$/ { next }
+    in_couchbase_block && /^[[:space:]]*# Import and initialize all Couchbase collections/ { next }
+    in_couchbase_block && /^[[:space:]]*from \.couchbase\.collections import COLLECTIONS/ { next }
+    in_couchbase_block && /^[[:space:]]*for Collection in COLLECTIONS:/ { next }
+    in_couchbase_block && /^[[:space:]]*await Collection\(app\.state\.couchbase_client\)\.initialize\(\)/ { next }
+
+    # Detect the end of the Couchbase block (next if statement or empty line followed by non-indented content)
+    in_couchbase_block && (/^[[:space:]]*# Initialize auth client if enabled/ || /^[[:space:]]*if / && !/if conf\.USE_COUCHBASE:/) {
+        in_couchbase_block = 0
+    }
+
+    # Print all other lines
+    !in_couchbase_block { print }
+    ' src/backend/main.py > src/backend/main.py.tmp
+
+    mv src/backend/main.py.tmp src/backend/main.py
+    echo "✅ Replaced inline Couchbase initialization with init module"
+fi
+
+# Replace the inline couchbase cleanup with the deinit module call
+if grep -q "await app\.state\.couchbase_client\.close\(\)" src/backend/main.py; then
+    echo "📝 Replacing inline Couchbase cleanup with deinit module..."
+
+    sed -i '' 's/await app\.state\.couchbase_client\.close()/await couchbase.deinit(app)/' src/backend/main.py
+
+    echo "✅ Replaced inline Couchbase cleanup with deinit module"
+fi
+
+echo ""
+echo "✅ Couchbase client setup complete!"
+echo ""
+echo "You can now:"
+echo "  1. Import and use the Couchbase client in your code:"
+echo "     from bluetext.couchbase_client import CouchbaseClient"
+echo "  2. The initialization is handled automatically in src/backend/init/couchbase.py"
+echo "  3. Add new collections using: ./bin/add-couchbase-collection <collection-name>"
