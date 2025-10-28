@@ -62,15 +62,33 @@ class CouchbaseController:
 
     def _test_connection(self) -> bool:
         """Test basic connectivity to Couchbase server."""
+        import base64
         protocol = "https" if self.tls else "http"
         port = "18091" if self.tls else "8091"
         test_url = f"{protocol}://{self.host}:{port}/pools"
-        
+
         try:
+            # First try without auth (for uninitialized clusters)
             request = urllib.request.Request(test_url, method='GET')
             with urllib.request.urlopen(request, timeout=10) as response:
-                self.logger.debug(f"✅ Connection test successful: {response.code}")
+                self.logger.debug(f"✅ Connection test successful (no auth): {response.code}")
                 return True
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                # Cluster is initialized, try with auth
+                try:
+                    credentials = base64.b64encode(f'{self.username}:{self.password}'.encode()).decode('ascii')
+                    request = urllib.request.Request(test_url, method='GET')
+                    request.add_header('Authorization', f'Basic {credentials}')
+                    with urllib.request.urlopen(request, timeout=10) as response:
+                        self.logger.debug(f"✅ Connection test successful (with auth): {response.code}")
+                        return True
+                except Exception as auth_e:
+                    self.logger.debug(f"❌ Connection test failed with auth: {auth_e}")
+                    return False
+            else:
+                self.logger.debug(f"❌ Connection test failed: HTTP {e.code}")
+                return False
         except Exception as e:
             self.logger.debug(f"❌ Connection test failed: {e}")
             return False
@@ -97,7 +115,27 @@ class CouchbaseController:
 
     def ensure_initialized(self) -> None:
         """Ensure the Couchbase cluster is initialized."""
+        import base64
         self.logger.info("🔄 Ensuring Couchbase cluster is initialized...")
+
+        # First check if cluster is already initialized
+        protocol = "https" if self.tls else "http"
+        port = "18091" if self.tls else "8091"
+        check_url = f"{protocol}://{self.host}:{port}/pools/default"
+
+        # Check with authentication
+        try:
+            credentials = base64.b64encode(f'{self.username}:{self.password}'.encode()).decode('ascii')
+            request = urllib.request.Request(check_url, method='GET')
+            request.add_header('Authorization', f'Basic {credentials}')
+            with urllib.request.urlopen(request, timeout=10) as response:
+                self.logger.info("✅ Cluster already initialized and accessible with provided credentials")
+                return
+        except urllib.error.HTTPError as e:
+            if e.code != 404:  # 404 means not initialized, anything else is an error
+                self.logger.debug(f"Cluster check returned HTTP {e.code}")
+        except Exception:
+            pass  # Try initialization
 
         params = self._get_cluster_init_params()
         encoded_data = urllib.parse.urlencode(params['data']).encode()
@@ -117,13 +155,14 @@ class CouchbaseController:
             except urllib.error.HTTPError as e:
                 error_body = e.read().decode() if hasattr(e, 'read') else str(e)
                 self.logger.debug(f"HTTP Error {e.code}: {error_body}")
-                
+
                 if e.code == 400 and ('already initialized' in error_body or 'Cluster is already initialized' in error_body):
                     self.logger.info("✅ Cluster already initialized")
                     return
                 elif e.code == 401:
-                    self.logger.error(f"❌ Authentication failed with credentials: {self.username}/{'*' * len(self.password)}")
-                    raise e
+                    # 401 on /clusterInit endpoint means cluster is already initialized
+                    self.logger.info("✅ Cluster already initialized (401 on init endpoint)")
+                    return
                 elif attempt == max_retries - 1:
                     self.logger.error(f'❌ HTTP Error after {max_retries} attempts: {e.code} - {error_body}')
                     raise e
