@@ -145,10 +145,31 @@ class CouchbaseController:
 
         raise Exception("Failed to initialize cluster after maximum retries")
 
+    def _is_connection_valid(self, cluster: Cluster) -> bool:
+        """Validate if the cluster connection is still active."""
+        try:
+            # Use ping to verify connectivity
+            result = cluster.ping()
+            # Check if at least one service is responding
+            for endpoint, reports in result.endpoints.items():
+                for report in reports:
+                    if report.state.name == 'OK':
+                        return True
+            return False
+        except Exception as e:
+            self.logger.debug(f"Connection validation failed: {e}")
+            return False
+
     def connect(self) -> Cluster:
         """Connect to Couchbase cluster."""
+        # Validate existing connection
         if self.cluster is not None:
-            return self.cluster
+            if self._is_connection_valid(self.cluster):
+                self.logger.debug("✅ Using existing valid connection")
+                return self.cluster
+            else:
+                self.logger.info("🔄 Cached connection invalid, reconnecting...")
+                self.cluster = None  # Clear invalid connection
 
         auth = PasswordAuthenticator(self.username, self.password)
         cluster_options = ClusterOptions(auth)
