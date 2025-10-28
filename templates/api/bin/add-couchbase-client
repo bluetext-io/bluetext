@@ -15,6 +15,39 @@ $(dirname "$0")/uv add --editable ../lib/py/couchbase-client
 
 echo "✅ Couchbase client library added successfully!"
 
+# Add Couchbase environment variables to polytope.yml if they don't exist
+echo ""
+echo "📝 Adding Couchbase environment variables to polytope.yml..."
+
+# Check if COUCHBASE_HOST already exists in the env section
+if ! grep -q "COUCHBASE_HOST" polytope.yml; then
+    # Find the line with "env:" and add Couchbase env vars after the last env var
+    # We'll insert after TEMPORAL_TASK_QUEUE or the last env var we find
+    if grep -q "TEMPORAL_TASK_QUEUE" polytope.yml; then
+        sed -i '' "/TEMPORAL_TASK_QUEUE/a\\
+\\
+            - { name: COUCHBASE_HOST, value: couchbase }\\
+            - { name: COUCHBASE_USERNAME, value: user }\\
+            - { name: COUCHBASE_PASSWORD, value: password }\\
+            - { name: COUCHBASE_BUCKET, value: default }\\
+            - { name: COUCHBASE_PROTOCOL, value: couchbase }
+" polytope.yml
+    else
+        # If TEMPORAL_TASK_QUEUE doesn't exist, add after LOG_LEVEL or another env var
+        sed -i '' "/LOG_LEVEL/a\\
+\\
+            - { name: COUCHBASE_HOST, value: couchbase }\\
+            - { name: COUCHBASE_USERNAME, value: user }\\
+            - { name: COUCHBASE_PASSWORD, value: password }\\
+            - { name: COUCHBASE_BUCKET, value: default }\\
+            - { name: COUCHBASE_PROTOCOL, value: couchbase }
+" polytope.yml
+    fi
+    echo "✅ Added Couchbase environment variables to polytope.yml"
+else
+    echo "ℹ️  Couchbase environment variables already exist in polytope.yml"
+fi
+
 # Add the add-couchbase-collection tool to polytope.yml if it doesn't already exist
 if ! grep -q "{{ project-name }}-add-couchbase-collection:" polytope.yml; then
     echo ""
@@ -40,6 +73,103 @@ EOF
     echo "✅ Added add-couchbase-collection tool to polytope.yml"
 fi
 
+# Create the Couchbase configuration file
+echo ""
+echo "📝 Creating Couchbase configuration file..."
+
+# Create the conf directory if it doesn't exist
+mkdir -p src/backend/conf
+
+# Create the couchbase.py configuration file
+cat > src/backend/conf/couchbase.py << 'EOF'
+from pydantic import BaseModel
+
+from .utils import auth, env, log
+from .utils.env import EnvVarSpec
+
+from bluetext.couchbase_client import CouchbaseConf
+
+#### Env Vars ####
+
+COUCHBASE_HOST = EnvVarSpec(
+    id="COUCHBASE_HOST",
+    default="couchbase"
+)
+
+COUCHBASE_USERNAME = EnvVarSpec(
+    id="COUCHBASE_USERNAME",
+    default="user"
+)
+
+COUCHBASE_PASSWORD = EnvVarSpec(
+    id="COUCHBASE_PASSWORD",
+    default="password",
+    is_secret=True
+)
+
+COUCHBASE_BUCKET = EnvVarSpec(
+    id="COUCHBASE_BUCKET",
+    default="main"
+)
+
+COUCHBASE_PROTOCOL = EnvVarSpec(
+    id="COUCHBASE_PROTOCOL",
+    default="couchbase"
+)
+
+VALIDATED_ENV_VARS = [
+    COUCHBASE_HOST,
+    COUCHBASE_USERNAME,
+    COUCHBASE_PASSWORD,
+    COUCHBASE_BUCKET,
+    COUCHBASE_PROTOCOL
+]
+
+
+#### Getters ####
+
+def get_couchbase_conf():
+    """Get Couchbase connection configuration."""
+    return CouchbaseConf(
+        host=env.parse(COUCHBASE_HOST),
+        username=env.parse(COUCHBASE_USERNAME),
+        password=env.parse(COUCHBASE_PASSWORD),
+        bucket=env.parse(COUCHBASE_BUCKET),
+        protocol=env.parse(COUCHBASE_PROTOCOL),
+    )
+EOF
+
+echo "✅ Created src/backend/conf/couchbase.py"
+
+# Update the main conf.py file to import couchbase configuration
+echo ""
+echo "📝 Updating src/backend/conf.py to include Couchbase configuration..."
+
+# Add import at the top of the file (after the existing imports)
+if ! grep -q "from . import couchbase" src/backend/conf.py; then
+    # Add the import after the line with "from .utils.env import EnvVarSpec"
+    sed -i '' '/from \.utils\.env import EnvVarSpec/a\
+from . import couchbase
+' src/backend/conf.py
+    echo "✅ Added couchbase import to conf.py"
+else
+    echo "ℹ️  Couchbase import already exists in conf.py"
+fi
+
+# Add VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS) after the initial VALIDATED_ENV_VARS definition
+if ! grep -q "VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS)" src/backend/conf.py; then
+    # Find the closing bracket of VALIDATED_ENV_VARS and add the extend statement after it
+    sed -i '' '/^VALIDATED_ENV_VARS = \[/,/^\]/{
+        /^\]/a\
+\
+VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS)
+    }' src/backend/conf.py
+    echo "✅ Added VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS) to conf.py"
+else
+    echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf.py"
+fi
+
 echo ""
 echo "You can now import it in your code:"
 echo "  from couchbase_client import CouchbaseClient"
+echo "  from src.backend.conf.couchbase import get_couchbase_conf"

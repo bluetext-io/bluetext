@@ -12,14 +12,6 @@ USE_AUTH = False
 # When False, all database functionality will be disabled
 USE_POSTGRES = False
 
-# Set to True if you want to use Couchbase
-# When False, couchbase client will not be initialized
-USE_COUCHBASE = False
-
-# Set to True to auto-create Couchbase buckets, scopes, and collections
-# When False, will throw errors if resources don't exist
-COUCHBASE_AUTO_MIGRATE = False
-
 # Set to True to enable Temporal
 USE_TEMPORAL = False
 
@@ -109,34 +101,6 @@ POSTGRES_POOL_MAX = EnvVarSpec(
     type=(int, ...)
 )
 
-## Couchbase ##
-
-COUCHBASE_HOST = EnvVarSpec(
-    id="COUCHBASE_HOST",
-    default="couchbase"
-)
-
-COUCHBASE_USERNAME = EnvVarSpec(
-    id="COUCHBASE_USERNAME",
-    default="user"
-)
-
-COUCHBASE_PASSWORD = EnvVarSpec(
-    id="COUCHBASE_PASSWORD",
-    default="password",
-    is_secret=True
-)
-
-COUCHBASE_BUCKET = EnvVarSpec(
-    id="COUCHBASE_BUCKET",
-    default="main"
-)
-
-COUCHBASE_PROTOCOL = EnvVarSpec(
-    id="COUCHBASE_PROTOCOL",
-    default="couchbase"
-)
-
 ## Temporal ##
 
 TEMPORAL_HOST = EnvVarSpec(
@@ -180,63 +144,54 @@ TWILIO_FROM_PHONE_NUMBER = EnvVarSpec(
 )
 
 #### Validation ####
+VALIDATED_ENV_VARS = [
+    HTTP_AUTORELOAD,
+    HTTP_EXPOSE_ERRORS,
+    HTTP_PORT,
+    LOG_LEVEL,
+]
+
+
+# Only validate auth vars if USE_AUTH is True
+if USE_AUTH:
+    VALIDATED_ENV_VARS.extend([
+        AUTH_OIDC_JWK_URL,
+        AUTH_OIDC_AUDIENCE,
+        AUTH_OIDC_ISSUER,
+    ])
+
+# Only validate PostgreSQL vars if USE_POSTGRES is True
+if USE_POSTGRES:
+    VALIDATED_ENV_VARS.extend([
+        POSTGRES_DB,
+        POSTGRES_USER,
+        POSTGRES_PASSWORD,
+        POSTGRES_HOST,
+        POSTGRES_PORT,
+        POSTGRES_POOL_MIN,
+        POSTGRES_POOL_MAX,
+    ])
+
+
+# Only validate Temporal vars if USE_TEMPORAL is True
+if USE_TEMPORAL:
+    VALIDATED_ENV_VARS.extend([
+        TEMPORAL_HOST,
+        TEMPORAL_PORT,
+        TEMPORAL_NAMESPACE,
+        TEMPORAL_TASK_QUEUE,
+    ])
+
+# Only validate Twilio vars if USE_TWILIO is True
+if USE_TWILIO:
+    VALIDATED_ENV_VARS.extend([
+        TWILIO_ACCOUNT_SID,
+        TWILIO_AUTH_TOKEN,
+        TWILIO_FROM_PHONE_NUMBER,
+    ])
 
 def validate() -> bool:
-    env_vars = [
-        HTTP_AUTORELOAD,
-        HTTP_EXPOSE_ERRORS,
-        HTTP_PORT,
-        LOG_LEVEL,
-    ]
-
-    # Only validate auth vars if USE_AUTH is True
-    if USE_AUTH:
-        env_vars.extend([
-            AUTH_OIDC_JWK_URL,
-            AUTH_OIDC_AUDIENCE,
-            AUTH_OIDC_ISSUER,
-        ])
-
-    # Only validate PostgreSQL vars if USE_POSTGRES is True
-    if USE_POSTGRES:
-        env_vars.extend([
-            POSTGRES_DB,
-            POSTGRES_USER,
-            POSTGRES_PASSWORD,
-            POSTGRES_HOST,
-            POSTGRES_PORT,
-            POSTGRES_POOL_MIN,
-            POSTGRES_POOL_MAX,
-        ])
-
-    # Only validate Couchbase vars if USE_COUCHBASE is True
-    if USE_COUCHBASE:
-        env_vars.extend([
-            COUCHBASE_HOST,
-            COUCHBASE_USERNAME,
-            COUCHBASE_PASSWORD,
-            COUCHBASE_BUCKET,
-            COUCHBASE_PROTOCOL,
-        ])
-
-    # Only validate Temporal vars if USE_TEMPORAL is True
-    if USE_TEMPORAL:
-        env_vars.extend([
-            TEMPORAL_HOST,
-            TEMPORAL_PORT,
-            TEMPORAL_NAMESPACE,
-            TEMPORAL_TASK_QUEUE,
-        ])
-
-    # Only validate Twilio vars if USE_TWILIO is True
-    if USE_TWILIO:
-        env_vars.extend([
-            TWILIO_ACCOUNT_SID,
-            TWILIO_AUTH_TOKEN,
-            TWILIO_FROM_PHONE_NUMBER,
-        ])
-
-    return env.validate(env_vars)
+    return env.validate(VALIDATED_ENV_VARS)
 
 #### Getters ####
 
@@ -282,19 +237,6 @@ def get_postgres_pool_conf():
     return PostgresPoolConf(
         min_size=env.parse(POSTGRES_POOL_MIN),
         max_size=env.parse(POSTGRES_POOL_MAX),
-    )
-
-def get_couchbase_conf():
-    """Get Couchbase connection configuration."""
-    # Import here to avoid circular dependency
-    from .clients.couchbase import CouchbaseConf
-
-    return CouchbaseConf(
-        host=env.parse(COUCHBASE_HOST),
-        username=env.parse(COUCHBASE_USERNAME),
-        password=env.parse(COUCHBASE_PASSWORD),
-        bucket=env.parse(COUCHBASE_BUCKET),
-        protocol=env.parse(COUCHBASE_PROTOCOL),
     )
 
 def get_temporal_conf():
