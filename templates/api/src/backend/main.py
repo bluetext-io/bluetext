@@ -60,10 +60,6 @@ async def lifespan(app: FastAPI):
     if conf.USE_POSTGRES:
         await app.state.postgres_client.close()
 
-    # Clean up Couchbase client if enabled
-    if conf.USE_COUCHBASE:
-        await app.state.couchbase_client.close()
-
     # Clean up Temporal client if enabled
     if conf.USE_TEMPORAL:
         await app.state.temporal_client.close()
