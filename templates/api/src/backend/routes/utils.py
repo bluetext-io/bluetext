@@ -101,8 +101,8 @@ def get_couchbase_client(request: Request):
             keyspace = cb.get_keyspace("users")
             return await cb.insert_document(keyspace, user.dict())
     """
-    if not conf.USE_COUCHBASE:
-        raise HTTPException(status_code=503, detail="Couchbase is not configured")
+    if not hasattr(request.app.state, 'couchbase_client'):
+        raise HTTPException(status_code=503, detail="Couchbase client is not configured. Run add-couchbase-client to set up Couchbase")
 
     return request.app.state.couchbase_client
 

@@ -224,74 +224,51 @@ else
     echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf/__init__.py"
 fi
 
-# Update main.py to use the init module
+# Note: Couchbase initialization is handled dynamically in main.py
+# The import happens within try/except blocks to allow graceful handling
+# when Couchbase is not yet configured
+
+# Add the Couchbase initialization to main.py lifespan
 echo ""
-echo "📝 Updating main.py to use the couchbase init module..."
+echo "📝 Adding Couchbase initialization to main.py..."
 
-# Check if the import already exists
-if ! grep -q "from \.init import couchbase" src/backend/main.py; then
-    # Add the import after the existing imports (after from . import conf)
-    "${SED_INPLACE[@]}" '/from \. import conf/a\
-from .init import couchbase
+# Check if Couchbase initialization already exists in main.py
+if ! grep -q "await couchbase.init(app)" src/backend/main.py; then
+    # Find the yield statement in the lifespan function and add Couchbase init before it
+    "${SED_INPLACE[@]}" '/^[[:space:]]*yield/i\
+\
+    # Initialize Couchbase client if configured\
+    try:\
+        from .init import couchbase\
+        await couchbase.init(app)\
+    except ImportError:\
+        # Couchbase not configured yet\
+        pass
 ' src/backend/main.py
-    echo "✅ Added couchbase init import to main.py"
 else
-    echo "ℹ️  Couchbase init import already exists in main.py"
+    echo "ℹ️  Couchbase initialization already exists in main.py"
 fi
 
-# Replace the inline couchbase initialization with the init module call
-# First, check if the old pattern exists (inline initialization)
-if grep -q "from \.clients\.couchbase import CouchbaseClient" src/backend/main.py; then
-    echo "📝 Replacing inline Couchbase initialization with init module..."
+# Add the Couchbase cleanup to main.py lifespan
+echo ""
+echo "📝 Adding Couchbase cleanup to main.py..."
 
-    # Create a temporary file with the updated content
-    awk '
-    BEGIN { in_couchbase_block = 0; found_couchbase_if = 0 }
-
-    # Detect the start of the Couchbase initialization block
-    /if conf\.USE_COUCHBASE:/ {
-        if (!found_couchbase_if) {
-            found_couchbase_if = 1
-            in_couchbase_block = 1
-            print "    # Initialize Couchbase client if enabled"
-            print "    if conf.USE_COUCHBASE:"
-            print "        await couchbase.init(app)"
-            print ""
-            next
-        }
-    }
-
-    # Skip lines in the Couchbase initialization block
-    in_couchbase_block && /^[[:space:]]*from \.clients\.couchbase import CouchbaseClient/ { next }
-    in_couchbase_block && /^[[:space:]]*couchbase_config = conf\.get_couchbase_conf\(\)/ { next }
-    in_couchbase_block && /^[[:space:]]*app\.state\.couchbase_client = CouchbaseClient/ { next }
-    in_couchbase_block && /^[[:space:]]*await app\.state\.couchbase_client\.init_connection\(\)/ { next }
-    in_couchbase_block && /^[[:space:]]*$/ { next }
-    in_couchbase_block && /^[[:space:]]*# Import and initialize all Couchbase collections/ { next }
-    in_couchbase_block && /^[[:space:]]*from \.couchbase\.collections import COLLECTIONS/ { next }
-    in_couchbase_block && /^[[:space:]]*for Collection in COLLECTIONS:/ { next }
-    in_couchbase_block && /^[[:space:]]*await Collection\(app\.state\.couchbase_client\)\.initialize\(\)/ { next }
-
-    # Detect the end of the Couchbase block (next if statement or empty line followed by non-indented content)
-    in_couchbase_block && (/^[[:space:]]*# Initialize auth client if enabled/ || /^[[:space:]]*if / && !/if conf\.USE_COUCHBASE:/) {
-        in_couchbase_block = 0
-    }
-
-    # Print all other lines
-    !in_couchbase_block { print }
-    ' src/backend/main.py > src/backend/main.py.tmp
-
-    mv src/backend/main.py.tmp src/backend/main.py
-    echo "✅ Replaced inline Couchbase initialization with init module"
-fi
-
-# Replace the inline couchbase cleanup with the deinit module call
-if grep -q "await app\.state\.couchbase_client\.close\(\)" src/backend/main.py; then
-    echo "📝 Replacing inline Couchbase cleanup with deinit module..."
-
-    "${SED_INPLACE[@]}" 's/await app\.state\.couchbase_client\.close()/await couchbase.deinit(app)/' src/backend/main.py
-
-    echo "✅ Replaced inline Couchbase cleanup with deinit module"
+# Check if Couchbase cleanup already exists in main.py
+if ! grep -q "await couchbase.deinit(app)" src/backend/main.py; then
+    # Add cleanup after yield in the lifespan function, before other cleanups
+    "${SED_INPLACE[@]}" '/^[[:space:]]*yield/a\
+\
+    # Clean up Couchbase client if configured\
+    if hasattr(app.state, "couchbase_client"):\
+        try:\
+            from .init import couchbase\
+            await couchbase.deinit(app)\
+        except Exception as e:\
+            logger.warning(f"Error cleaning up Couchbase: {e}")
+' src/backend/main.py
+    echo "✅ Added Couchbase cleanup to main.py lifespan"
+else
+    echo "ℹ️  Couchbase cleanup already exists in main.py"
 fi
 
 echo ""
@@ -301,4 +278,4 @@ echo "You can now:"
 echo "  1. Import and use the Couchbase client in your code:"
 echo "     from couchbase_client import CouchbaseClient"
 echo "  2. The initialization is handled automatically in src/backend/init/couchbase.py"
-echo "  3. Add new collections using: ./bin/add-couchbase-collection <collection-name>"
+echo "  3. Add new collections using the Polytope tool: pt {{ project-name }}-add-couchbase-collection <collection-name>"

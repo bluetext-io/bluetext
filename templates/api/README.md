@@ -91,21 +91,10 @@ async def protected_route(principal: RequestPrincipal):
 
 ### Couchbase
 
-Quick Setup - ALWAYS follow this pattern for new Couchbase collections:
+Quick Setup - ALWAYS follow this pattern before setting up Couchbase.
 
-1. Enable: `USE_COUCHBASE = True` in `conf.py`
-2. Add desired collections - Run this tool:
-   ```mcp
-   __polytope__run(module: "{{ project-name }}-add-couchbase-collection", args: {"name": "collection-name"})
-   ```
-   During initial setup, finish and verify this step before adding further services to the project.
-3. Check container logs to verify success:
-   ```mcp
-   __polytope__get_container_logs(container: {{ project-name }}, limit: 50)
-   ```
-4. Read the generated file at: `src/backend/couchbase/collections/<collection_name>.py`
-5. Customize the model in the generated file (DO NOT create manually)
-6. Uncomment example routes in `routes/base.py`
+1. Call ` __polytope__add-couchbase()` to add the Couchbase Server to the project and start it.
+2. Call `__polytope__run(tool: {{ project-name }}-add-couchbase-client)` to add our Couchbase client to this project. This tool will also give you instructions on how to proceed.
 
 ### SMS/Twilio
 1. Set Twilio environment variables
