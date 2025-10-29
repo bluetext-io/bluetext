@@ -85,4 +85,4 @@ tools:
           cmd: ./bin/add-couchbase-client
           restart-policy: never
       - id: reload-{{ project_name }}
-        tool: {{ project_name }}
+        tool: {{ project-name }}

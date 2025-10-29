@@ -27,19 +27,6 @@ async def lifespan(app: FastAPI):
         # Create tables after connection is established
         await app.state.postgres_client.create_tables(SQLModel.metadata)
 
-    # Initialize Couchbase client if enabled
-    if conf.USE_COUCHBASE:
-        from .clients.couchbase import CouchbaseClient
-        couchbase_config = conf.get_couchbase_conf()
-        app.state.couchbase_client = CouchbaseClient(couchbase_config)
-        await app.state.couchbase_client.init_connection()
-
-        # Import and initialize all Couchbase collections
-        from .couchbase.collections import COLLECTIONS
-        for Collection in COLLECTIONS:
-            await Collection(app.state.couchbase_client).initialize()
-
-
     # Initialize auth client if enabled
     if conf.USE_AUTH:
         from .utils import auth
