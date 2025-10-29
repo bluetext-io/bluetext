@@ -84,5 +84,5 @@ tools:
           id: api-add-couchbase-client
           cmd: ./bin/add-couchbase-client
           restart-policy: never
-      - id: reload-{{ project_name }}
+      - id: reload-{{ project-name }}
         tool: {{ project-name }}

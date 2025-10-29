@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from .utils import auth, env, log
-from .utils.env import EnvVarSpec
+from ..utils import auth, env, log
+from ..utils.env import EnvVarSpec
 
 logger = log.get_logger(__name__)
 
@@ -219,7 +219,7 @@ def get_http_conf() -> HttpServerConf:
 def get_postgres_conf():
     """Get PostgreSQL connection configuration."""
     # Import here to avoid circular dependency
-    from .clients.postgres import PostgresConf
+    from ..clients.postgres import PostgresConf
     
     return PostgresConf(
         database=env.parse(POSTGRES_DB),
@@ -232,7 +232,7 @@ def get_postgres_conf():
 def get_postgres_pool_conf():
     """Get PostgreSQL connection pool configuration."""
     # Import here to avoid circular dependency
-    from .clients.postgres import PostgresPoolConf
+    from ..clients.postgres import PostgresPoolConf
     
     return PostgresPoolConf(
         min_size=env.parse(POSTGRES_POOL_MIN),
@@ -242,7 +242,7 @@ def get_postgres_pool_conf():
 def get_temporal_conf():
     """Get Temporal connection configuration."""
     # Import here to avoid circular dependency
-    from .clients.temporal import TemporalConf
+    from ..clients.temporal import TemporalConf
 
     return TemporalConf(
         host=env.parse(TEMPORAL_HOST),
@@ -254,7 +254,7 @@ def get_temporal_conf():
 def get_twilio_conf():
     """Get Twilio configuration."""
     # Import here to avoid circular dependency
-    from .clients.twilio import TwilioConf
+    from ..clients.twilio import TwilioConf
 
     return TwilioConf(
         account_sid=env.parse(TWILIO_ACCOUNT_SID),
