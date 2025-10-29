@@ -6,6 +6,13 @@ set -e
 # Change to the api directory
 cd "$(dirname "$0")/.."
 
+# Detect OS for sed compatibility
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    SED_INPLACE=(sed -i '')
+else
+    SED_INPLACE=(sed -i)
+fi
+
 echo "📦 Adding couchbase-client library as editable dependency..."
 
 $(dirname "$0")/uv add --editable ../lib/py/couchbase-client
@@ -24,7 +31,7 @@ if ! grep -q "COUCHBASE_HOST" polytope.yml; then
     # Find the line with "env:" and add Couchbase env vars after the last env var
     # We'll insert after TEMPORAL_TASK_QUEUE or the last env var we find
     if grep -q "TEMPORAL_TASK_QUEUE" polytope.yml; then
-        sed -i '' "/TEMPORAL_TASK_QUEUE/a\\
+        "${SED_INPLACE[@]}" "/TEMPORAL_TASK_QUEUE/a\\
 \\
             - { name: COUCHBASE_HOST, value: couchbase }\\
             - { name: COUCHBASE_USERNAME, value: user }\\
@@ -34,7 +41,7 @@ if ! grep -q "COUCHBASE_HOST" polytope.yml; then
 " polytope.yml
     else
         # If TEMPORAL_TASK_QUEUE doesn't exist, add after LOG_LEVEL or another env var
-        sed -i '' "/LOG_LEVEL/a\\
+        "${SED_INPLACE[@]}" "/LOG_LEVEL/a\\
 \\
             - { name: COUCHBASE_HOST, value: couchbase }\\
             - { name: COUCHBASE_USERNAME, value: user }\\
@@ -185,7 +192,7 @@ echo "📝 Updating src/backend/conf.py to include Couchbase configuration..."
 # Add import at the top of the file (after the existing imports)
 if ! grep -q "from . import couchbase" src/backend/conf.py; then
     # Add the import after the line with "from .utils.env import EnvVarSpec"
-    sed -i '' '/from \.utils\.env import EnvVarSpec/a\
+    "${SED_INPLACE[@]}" '/from \.utils\.env import EnvVarSpec/a\
 from . import couchbase
 ' src/backend/conf.py
     echo "✅ Added couchbase import to conf.py"
@@ -196,7 +203,7 @@ fi
 # Add VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS) after the initial VALIDATED_ENV_VARS definition
 if ! grep -q "VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS)" src/backend/conf.py; then
     # Find the closing bracket of VALIDATED_ENV_VARS and add the extend statement after it
-    sed -i '' '/^VALIDATED_ENV_VARS = \[/,/^\]/{
+    "${SED_INPLACE[@]}" '/^VALIDATED_ENV_VARS = \[/,/^\]/{
         /^\]/a\
 \
 VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS)
@@ -213,7 +220,7 @@ echo "📝 Updating main.py to use the couchbase init module..."
 # Check if the import already exists
 if ! grep -q "from \.init import couchbase" src/backend/main.py; then
     # Add the import after the existing imports (after from . import conf)
-    sed -i '' '/from \. import conf/a\
+    "${SED_INPLACE[@]}" '/from \. import conf/a\
 from .init import couchbase
 ' src/backend/main.py
     echo "✅ Added couchbase init import to main.py"
@@ -271,7 +278,7 @@ fi
 if grep -q "await app\.state\.couchbase_client\.close\(\)" src/backend/main.py; then
     echo "📝 Replacing inline Couchbase cleanup with deinit module..."
 
-    sed -i '' 's/await app\.state\.couchbase_client\.close()/await couchbase.deinit(app)/' src/backend/main.py
+    "${SED_INPLACE[@]}" 's/await app\.state\.couchbase_client\.close()/await couchbase.deinit(app)/' src/backend/main.py
 
     echo "✅ Replaced inline Couchbase cleanup with deinit module"
 fi
