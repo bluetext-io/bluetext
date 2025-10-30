@@ -142,7 +142,7 @@ from fastapi import FastAPI
 
 from temporal_client import TemporalClient
 from ..conf.temporal import get_temporal_conf
-from ..workflows import WORKFLOWS, ACTIVITIES
+from ..workflows import WORKFLOWS
 from ..utils.log import get_logger
 
 logger = get_logger(__name__)
@@ -158,11 +158,10 @@ async def init_temporal(app: FastAPI) -> None:
 
     app.state.temporal_client = TemporalClient(
         config=temporal_config,
-        workflows=WORKFLOWS,
-        activities=ACTIVITIES
+        workflows=WORKFLOWS
     )
     await app.state.temporal_client.initialize()
-    logger.info(f"Temporal client initialized with {len(WORKFLOWS)} workflow(s) and {len(ACTIVITIES)} activity(ies)")
+    logger.info(f"Temporal client initialized with {len(WORKFLOWS)} workflow(s)")
 
 
 async def deinit_temporal(app: FastAPI) -> None:
@@ -244,19 +243,16 @@ if [ ! -f src/backend/workflows/__init__.py ]; then
     echo "📝 Creating workflows registry..."
     cat > src/backend/workflows/__init__.py << 'EOF'
 """
-Temporal workflows and activities registry.
+Temporal workflows registry.
 
-All workflows and activities are automatically registered here.
+All workflows are automatically registered here.
 """
 
-# Import workflows and activities here
+# Import workflows here
 # They will be auto-added by the add-temporal-workflow tool
 
-# Registry of all workflows and activities
+# Registry of all workflows
 WORKFLOWS = [
-]
-
-ACTIVITIES = [
 ]
 EOF
     echo "✅ Created src/backend/workflows/__init__.py"
