@@ -89,6 +89,9 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 from temporalio import activity, workflow
+from ..utils.log import get_logger
+
+logger = get_logger(__name__)
 
 #### Constants ####
 
@@ -137,7 +140,7 @@ class ${pascal_name}Workflow:
     """
 
     @workflow.run
-    async def run(self, name: str, placeholder: str = "placeholder") -> ${pascal_name}Response:
+    async def run(self, input: ${pascal_name}Input) -> ${pascal_name}Response:
         """
         The main workflow entry point.
 

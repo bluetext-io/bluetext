@@ -84,10 +84,12 @@ async def protected_route(principal: RequestPrincipal):
 4. Clients must send requests with `Authorization: Bearer <jwt-token>` header
 
 ### Temporal Workflows
-1. Enable: `USE_TEMPORAL = True` in `conf.py`
-2. Add workflows to `src/backend/workflows/examples.py`
-3. Register workflows and activities in `src/backend/workflows/__init__.py`
-4. Uncomment workflow routes in `src/backend/routes/base.py`
+
+Quick Setup - ALWAYS follow this pattern before setting up Temporal.
+
+1. Call `__polytope__add-temporal()` to add the Temporal Server to the project and start it.
+2. Call `__polytope__run(tool: {{ project-name }}-add-temporal-client)` to add our Temporal client to this project. This tool will also give you instructions on how to proceed.
+3. Call `__polytope__run(tool: {{ project-name }}-add-temporal-workflow, name: placeholder)` to scaffold a new workflow with activity, Pydantic models, and automatic registration.
 
 ### Couchbase
 
