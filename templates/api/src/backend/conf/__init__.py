@@ -12,9 +12,6 @@ USE_AUTH = False
 # When False, all database functionality will be disabled
 USE_POSTGRES = False
 
-# Set to True to enable Temporal
-USE_TEMPORAL = False
-
 # Set to True to enable Twilio SMS functionality
 USE_TWILIO = False
 
@@ -101,30 +98,6 @@ POSTGRES_POOL_MAX = EnvVarSpec(
     type=(int, ...)
 )
 
-## Temporal ##
-
-TEMPORAL_HOST = EnvVarSpec(
-    id="TEMPORAL_HOST",
-    default="temporal"
-)
-
-TEMPORAL_PORT = EnvVarSpec(
-    id="TEMPORAL_PORT",
-    parse=int,
-    default="7233",
-    type=(int, ...)
-)
-
-TEMPORAL_NAMESPACE = EnvVarSpec(
-    id="TEMPORAL_NAMESPACE",
-    default="default"
-)
-
-TEMPORAL_TASK_QUEUE = EnvVarSpec(
-    id="TEMPORAL_TASK_QUEUE",
-    default="main-task-queue"
-)
-
 ## Twilio ##
 
 TWILIO_ACCOUNT_SID = EnvVarSpec(
@@ -170,16 +143,6 @@ if USE_POSTGRES:
         POSTGRES_PORT,
         POSTGRES_POOL_MIN,
         POSTGRES_POOL_MAX,
-    ])
-
-
-# Only validate Temporal vars if USE_TEMPORAL is True
-if USE_TEMPORAL:
-    VALIDATED_ENV_VARS.extend([
-        TEMPORAL_HOST,
-        TEMPORAL_PORT,
-        TEMPORAL_NAMESPACE,
-        TEMPORAL_TASK_QUEUE,
     ])
 
 # Only validate Twilio vars if USE_TWILIO is True
@@ -233,22 +196,10 @@ def get_postgres_pool_conf():
     """Get PostgreSQL connection pool configuration."""
     # Import here to avoid circular dependency
     from ..clients.postgres import PostgresPoolConf
-    
+
     return PostgresPoolConf(
         min_size=env.parse(POSTGRES_POOL_MIN),
         max_size=env.parse(POSTGRES_POOL_MAX),
-    )
-
-def get_temporal_conf():
-    """Get Temporal connection configuration."""
-    # Import here to avoid circular dependency
-    from ..clients.temporal import TemporalConf
-
-    return TemporalConf(
-        host=env.parse(TEMPORAL_HOST),
-        port=env.parse(TEMPORAL_PORT),
-        namespace=env.parse(TEMPORAL_NAMESPACE),
-        task_queue=env.parse(TEMPORAL_TASK_QUEUE),
     )
 
 def get_twilio_conf():

@@ -175,32 +175,52 @@ update_workflows_init() {
         return 0
     fi
 
-    # Add import statement (only import workflow, not activity)
+    # Add import statement after any existing imports or after docstring
     import_line="from .${snake_name} import ${pascal_name}Workflow"
 
-    # Find where to insert the import (after the docstring)
-    if grep -q "# Import workflows here" "$init_file"; then
-        # Add after the comment on a new line
-        awk '/# They will be auto-added by the add-temporal-workflow tool/ {print; print "'"$import_line"'"; next} 1' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
-    else
-        # Append at the end of imports section
-        echo "$import_line" >> "$init_file"
-    fi
+    # Use awk to find the right place: after last import or before WORKFLOWS if no imports
+    awk -v import_line="$import_line" '
+    BEGIN { inserted = 0; in_imports = 0 }
 
-    # Update WORKFLOWS list
+    # Track if we are seeing imports
+    /^from \.|^import / {
+        in_imports = 1
+        print
+        next
+    }
+
+    # If we were in imports and now hit a non-import, insert here
+    in_imports && !/^from \.|^import / && !inserted {
+        print import_line
+        print ""
+        inserted = 1
+        in_imports = 0
+    }
+
+    # If we hit WORKFLOWS without inserting yet, insert before it
+    /^WORKFLOWS = \[/ && !inserted {
+        print ""
+        print import_line
+        print ""
+        inserted = 1
+    }
+
+    # Print all other lines
+    { print }
+    ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+
+    # Update WORKFLOWS list - find first standalone ] and add entry before it
     if grep -q "WORKFLOWS = \[" "$init_file"; then
-        # Add to WORKFLOWS list (not as a string, but as a class reference)
         workflow_entry="    ${pascal_name}Workflow,"
 
-        # Add before the closing bracket of WORKFLOWS
+        # Use awk to add before the first standalone closing bracket after WORKFLOWS
         awk -v entry="$workflow_entry" '
-            /^WORKFLOWS = \[/,/^\]/ {
-                if (/^\]/ && !workflow_added) {
-                    print entry
-                    workflow_added = 1
-                }
-            }
-            1
+        /^WORKFLOWS = \[/ { in_workflows = 1 }
+        in_workflows && /^\]$/ && !added {
+            print entry
+            added = 1
+        }
+        { print }
         ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
     fi
 

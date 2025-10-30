@@ -35,18 +35,6 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Authentication is disabled (set USE_AUTH to enable)")
 
-    # Initialize Temporal client if enabled
-    if conf.USE_TEMPORAL:
-        from .clients.temporal import TemporalClient
-        from .workflows import WORKFLOWS, ACTIVITIES
-        temporal_config = conf.get_temporal_conf()
-        app.state.temporal_client = TemporalClient(
-            config=temporal_config,
-            workflows=WORKFLOWS,
-            activities=ACTIVITIES
-        )
-        await app.state.temporal_client.initialize()
-
     # Initialize Twilio client if enabled
     if conf.USE_TWILIO:
         from .clients.twilio import TwilioClient
@@ -66,10 +54,6 @@ async def lifespan(app: FastAPI):
     # Clean up PostgreSQL client if enabled
     if conf.USE_POSTGRES:
         await app.state.postgres_client.close()
-
-    # Clean up Temporal client if enabled
-    if conf.USE_TEMPORAL:
-        await app.state.temporal_client.close()
 
     # Clean up Twilio client if enabled
     if conf.USE_TWILIO:

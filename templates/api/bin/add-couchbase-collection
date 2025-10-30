@@ -190,52 +190,56 @@ update_collections_init() {
         SED_INPLACE=(sed -i)
     fi
 
-    # Add import statement before the "# Registry of all collections" comment
+    # Add import statement after any existing imports or after docstring
     import_line="from .${snake_name} import ${pascal_name}Collection"
 
-    # Insert import before the "# Registry of all collections" comment line
-    "${SED_INPLACE[@]}" "/# Registry of all collections/i\\
-${import_line}
-" "$init_file"
+    # Use awk to find the right place: after last import or after docstring, before COLLECTIONS
+    awk -v import_line="$import_line" '
+    BEGIN { found_imports = 0; inserted = 0 }
 
-    # Update COLLECTIONS list
+    # Track if we have seen imports
+    /^from \.|^import / { found_imports = 1; last_import = NR }
+
+    # If we hit COLLECTIONS without inserting yet, insert before it
+    /^COLLECTIONS = \[/ && !inserted {
+        if (found_imports) {
+            # Already printed import after last import line
+        } else {
+            # No imports found, insert here with blank line
+            print ""
+            print import_line
+        }
+        print
+        inserted = 1
+        next
+    }
+
+    # Print the line
+    { print }
+
+    # After the last import line, add new import
+    found_imports && NR == last_import && !inserted {
+        print import_line
+        inserted = 1
+    }
+    ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+
+    # Update COLLECTIONS list - find first standalone ] and add entry before it
     if grep -q "COLLECTIONS = \[" "$init_file"; then
-        # Add to COLLECTIONS list (not as a string, but as a class reference)
         export_entry="    ${pascal_name}Collection,"
 
-        # Add before the closing bracket
-        awk -v entry="$export_entry" '/^\]/ {print entry} 1' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+        # Use awk to add before the first standalone closing bracket after COLLECTIONS
+        awk -v entry="$export_entry" '
+        /^COLLECTIONS = \[/ { in_collections = 1 }
+        in_collections && /^\]$/ && !added {
+            print entry
+            added = 1
+        }
+        { print }
+        ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
     fi
 
     echoh "📝 Registered collection in $init_file"
-}
-
-# Function to ensure collections directory and __init__.py exist
-ensure_collections_structure() {
-    # Create collections directory if it doesn't exist
-    if [ ! -d "$collections_dir" ]; then
-        mkdir -p "$collections_dir"
-        echoh "📁 Created collections directory: $collections_dir"
-    fi
-
-    # Create __init__.py if it doesn't exist
-    local init_file="${collections_dir}/__init__.py"
-    if [ ! -f "$init_file" ]; then
-        cat > "$init_file" << 'EOF'
-"""
-Couchbase collection bindings.
-
-All collection classes should be imported here.
-"""
-# Import all collection classes here
-# They will be auto-added by the add-couchbase-collection tool
-
-# Export all collections
-COLLECTIONS = [
-]
-EOF
-        echoh "📄 Created collections __init__.py: $init_file"
-    fi
 }
 
 # Main script
