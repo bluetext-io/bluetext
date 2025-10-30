@@ -65,7 +65,6 @@ async def health_check(
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "features": {
                 "postgres": conf.USE_POSTGRES,
-                "temporal": conf.USE_TEMPORAL,
                 "twilio": conf.USE_TWILIO,
                 "auth": conf.USE_AUTH,
             },
@@ -129,7 +128,7 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 
     # Check Temporal if requested (with timeout protection)
     if not services_filter or "temporal" in services_filter:
-        if conf.USE_TEMPORAL:
+        if hasattr(request.app.state, 'temporal_client'):
             temporal_client = request.app.state.temporal_client
             # Use health_check if available, otherwise use is_connected with timeout
             if hasattr(temporal_client, 'health_check'):
@@ -159,8 +158,8 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
                 health_status["status"] = "degraded"
         else:
             health_status["temporal"] = {
-                "status": "disabled",
-                "message": "Temporal is disabled (USE_TEMPORAL=False)"
+                "status": "not_configured",
+                "message": "Temporal client not configured (run add-temporal-client to set up)"
             }
 
     # Check Twilio if requested
@@ -407,8 +406,8 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 #     """Send a delayed SMS message using Temporal workflow."""
 #     if not conf.USE_TWILIO:
 #         raise HTTPException(status_code=503, detail="Twilio SMS is disabled")
-#     if not conf.USE_TEMPORAL:
-#         raise HTTPException(status_code=503, detail="Temporal is disabled")
+#     if not hasattr(request.app.state, 'temporal_client'):
+#         raise HTTPException(status_code=503, detail="Temporal is not configured")
 #
 #     # This would require implementing a Temporal workflow for SMS
 #     # Example workflow implementation would go in clients/temporal.py:
