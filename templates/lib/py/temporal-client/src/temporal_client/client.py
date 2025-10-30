@@ -3,7 +3,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 from temporalio.client import Client, TLSConfig
 from temporalio.contrib.pydantic import pydantic_data_converter
@@ -72,11 +72,18 @@ class TemporalClient:
 
     async def _connection_retry_loop(self):
         """Retry connection loop that runs in background"""
+        first_attempt = True
         while not self._connected:
             try:
-                logger.info(
-                    f"Connecting to Temporal server at {self._config.get_target_host()}"
-                )
+                current_time = time.time()
+
+                # Log connection attempt on first try or every 10 seconds
+                if first_attempt or current_time - self._last_error_log_time >= 10:
+                    logger.info(
+                        f"Connecting to Temporal server at {self._config.get_target_host()}"
+                    )
+                    self._last_error_log_time = current_time
+                    first_attempt = False
 
                 # Connect with optional pydantic data converter
                 connect_kwargs = {
@@ -291,3 +298,14 @@ class TemporalClient:
         """Raw gRPC test service client"""
         self._ensure_connected()
         return self._client.test_service
+
+    def health_check(self) -> Dict[str, Any]:
+        """Check if Temporal connection is healthy (non-blocking for health endpoints)"""
+        if not self._connected:
+            return {
+                "connected": False,
+                "status": "connecting",
+                "last_error": self._last_connection_error
+            }
+
+        return {"connected": True, "status": "healthy"}

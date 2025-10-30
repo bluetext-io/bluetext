@@ -64,11 +64,12 @@ tools:
           create: always
 
   {{ project-name }}-add-couchbase-client:
-    info: Run before add-couchbase-collection. Adds Couchbase client library with all interaction functions and registers add-couchbase-collection tool to polytope.yml.
+    info: Adds Couchbase client library with all interaction functions and registers add-couchbase-collection tool to polytope.yml.
     params: []
+    await: [add-couchbase-scripts, add-couchbase-client]
     run:
       - tool: polytope/scaffold
-        id: add-couchbase-client
+        id: add-couchbase-scripts
         args:
           actions:
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/couchbase-client}
@@ -78,8 +79,33 @@ tools:
               path: /modules/api/bin/add-couchbase-collection
               on-conflict: skip
       - tool: {{ project-name }}
-        after: { step: add-couchbase-client }
+        after: { step: add-couchbase-scripts }
+        id: add-couchbase-client
         args:
           id: api-add-couchbase-client
           cmd: ./bin/add-couchbase-client
+          restart-policy: never
+
+  {{ project-name }}-add-temporal-client:
+    info: Adds Temporal client library with workflow orchestration support and registers add-temporal-workflow tool to polytope.yml. 
+    params: []
+    await: [add-temporal-scripts, add-temporal-client]
+    run:
+      - tool: polytope/scaffold
+        id: add-temporal-scripts
+        args:
+          actions:
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/temporal-client}
+              path: /lib/py/temporal-client
+              on-conflict: skip
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-temporal-workflow}
+              path: /modules/api/bin/add-temporal-workflow
+              on-conflict: skip
+
+      - tool: {{ project-name }}
+        after: { step: add-temporal-scripts }
+        id: add-temporal-client
+        args:
+          id: api-add-temporal-client
+          cmd: ./bin/add-temporal-client
           restart-policy: never

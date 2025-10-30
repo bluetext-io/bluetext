@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+# Add the temporal-client library as an editable dependency
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+# Detect OS for sed compatibility
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    SED_INPLACE=(sed -i '')
+else
+    SED_INPLACE=(sed -i)
+fi
+
+echo "📦 Adding temporal-client library as editable dependency..."
+
+$(dirname "$0")/uv add --editable ../lib/py/temporal-client
+
+echo "✅ Temporal client library added successfully!"
+
+# Add Temporal environment variables to polytope.yml if they don't exist
+echo ""
+echo "📝 Adding Temporal environment variables to polytope.yml..."
+
+# Check if TEMPORAL_HOST already exists in the env section
+if ! grep -q "TEMPORAL_HOST" polytope.yml; then
+    # Find the line with "env:" and add Temporal env vars after the last env var
+    # We'll insert after COUCHBASE_PROTOCOL or LOG_LEVEL if those exist
+    if grep -q "COUCHBASE_PROTOCOL" polytope.yml; then
+        "${SED_INPLACE[@]}" "/COUCHBASE_PROTOCOL/a\\
+\\
+            - { name: TEMPORAL_HOST, value: temporal }\\
+            - { name: TEMPORAL_PORT, value: 7233 }\\
+            - { name: TEMPORAL_NAMESPACE, value: default }\\
+            - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
+" polytope.yml
+    elif grep -q "LOG_LEVEL" polytope.yml; then
+        "${SED_INPLACE[@]}" "/LOG_LEVEL/a\\
+\\
+            - { name: TEMPORAL_HOST, value: temporal }\\
+            - { name: TEMPORAL_PORT, value: 7233 }\\
+            - { name: TEMPORAL_NAMESPACE, value: default }\\
+            - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
+" polytope.yml
+    fi
+    echo "✅ Added Temporal environment variables to polytope.yml"
+else
+    echo "ℹ️  Temporal environment variables already exist in polytope.yml"
+fi
+
+# Add the add-temporal-workflow tool to polytope.yml if it doesn't already exist
+if ! grep -q "{{ project-name }}-add-temporal-workflow:" polytope.yml; then
+    echo ""
+    echo "📝 Adding add-temporal-workflow tool to polytope.yml..."
+
+    cat >> polytope.yml << 'EOF'
+
+  {{ project-name }}-add-temporal-workflow:
+    info: Scaffold a new Temporal workflow with activity, Pydantic models, and automatic registration.
+    params:
+      - id: name
+        info: The name of the workflow to create (e.g., 'greeting', 'data-processing')
+        type: str
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add-temporal-workflow
+          restart-policy: never
+          cmd: ./bin/add-temporal-workflow {pt.param name}
+          create: always
+EOF
+
+    echo "✅ Added add-temporal-workflow tool to polytope.yml"
+fi
+
+# Create the Temporal configuration file
+echo ""
+echo "📝 Creating Temporal configuration file..."
+
+# Create the temporal.py configuration file
+cat > src/backend/conf/temporal.py << 'EOF'
+from pydantic import BaseModel
+
+from ..utils import auth, env, log
+from ..utils.env import EnvVarSpec
+
+from temporal_client import TemporalConf
+
+#### Env Vars ####
+
+TEMPORAL_HOST = EnvVarSpec(
+    id="TEMPORAL_HOST",
+    default="temporal"
+)
+
+TEMPORAL_PORT = EnvVarSpec(
+    id="TEMPORAL_PORT",
+    default="7233"
+)
+
+TEMPORAL_NAMESPACE = EnvVarSpec(
+    id="TEMPORAL_NAMESPACE",
+    default="default"
+)
+
+TEMPORAL_TASK_QUEUE = EnvVarSpec(
+    id="TEMPORAL_TASK_QUEUE",
+    default="main-task-queue"
+)
+
+VALIDATED_ENV_VARS = [
+    TEMPORAL_HOST,
+    TEMPORAL_PORT,
+    TEMPORAL_NAMESPACE,
+    TEMPORAL_TASK_QUEUE
+]
+
+
+#### Getters ####
+
+def get_temporal_conf():
+    """Get Temporal connection configuration."""
+    return TemporalConf(
+        host=env.parse(TEMPORAL_HOST),
+        port=int(env.parse(TEMPORAL_PORT)),
+        namespace=env.parse(TEMPORAL_NAMESPACE),
+        task_queue=env.parse(TEMPORAL_TASK_QUEUE)
+    )
+EOF
+
+echo "✅ Created src/backend/conf/temporal.py"
+
+# Create the init/temporal.py file with initialization logic
+echo ""
+echo "📝 Creating init/temporal.py with initialization logic..."
+
+cat > src/backend/init/temporal.py << 'EOF'
+"""Temporal client initialization and deinitialization."""
+
+from fastapi import FastAPI
+
+from temporal_client import TemporalClient
+from ..conf.temporal import get_temporal_conf
+from ..workflows import WORKFLOWS, ACTIVITIES
+from ..utils.log import get_logger
+
+logger = get_logger(__name__)
+
+
+async def init_temporal(app: FastAPI) -> None:
+    """Initialize Temporal client."""
+    logger.info("Initializing Temporal client...")
+    temporal_config = get_temporal_conf()
+
+    if not WORKFLOWS:
+        logger.info("No workflows found. You can add workflows using the add-temporal-workflow tool.")
+
+    app.state.temporal_client = TemporalClient(
+        config=temporal_config,
+        workflows=WORKFLOWS,
+        activities=ACTIVITIES
+    )
+    await app.state.temporal_client.initialize()
+    logger.info(f"Temporal client initialized with {len(WORKFLOWS)} workflow(s) and {len(ACTIVITIES)} activity(ies)")
+
+
+async def deinit_temporal(app: FastAPI) -> None:
+    """Close Temporal client connection."""
+    logger.info("Closing Temporal client connection...")
+    await app.state.temporal_client.close()
+    logger.info("Temporal client connection closed")
+EOF
+
+echo "✅ Created src/backend/init/temporal.py"
+
+# Inject Temporal initialization calls into init/__init__.py
+echo ""
+echo "📝 Injecting Temporal initialization calls into init/__init__.py..."
+
+# Check if temporal initialization is already present
+if grep -q "init_temporal" src/backend/init/__init__.py; then
+    echo "ℹ️  Temporal initialization already present in init/__init__.py"
+else
+    # Add import at the top of the file (after FastAPI import)
+    "${SED_INPLACE[@]}" '/^from fastapi import FastAPI$/a\
+\
+from .temporal import init_temporal, deinit_temporal
+' src/backend/init/__init__.py
+
+    # Inject init call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def init(app: FastAPI) -> None:/,/^async def deinit/{
+        /""".*"""/{
+            a\
+    await init_temporal(app)
+        }
+    }' src/backend/init/__init__.py
+
+    # Inject deinit call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def deinit(app: FastAPI) -> None:/,${
+        /""".*"""/{
+            a\
+    await deinit_temporal(app)
+        }
+    }' src/backend/init/__init__.py
+
+    echo "✅ Injected Temporal initialization calls into init/__init__.py"
+fi
+
+# Update the main conf/__init__.py file to import temporal configuration
+echo ""
+echo "📝 Updating src/backend/conf/__init__.py to include Temporal configuration..."
+
+# Add import at the top of the file (after the existing imports)
+if ! grep -q "from . import temporal" src/backend/conf/__init__.py; then
+    # Add the import after the line with "from ..utils.env import EnvVarSpec"
+    "${SED_INPLACE[@]}" '/from \.\.utils\.env import EnvVarSpec/a\
+from . import temporal
+' src/backend/conf/__init__.py
+    echo "✅ Added temporal import to conf/__init__.py"
+else
+    echo "ℹ️  Temporal import already exists in conf/__init__.py"
+fi
+
+# Add VALIDATED_ENV_VARS.extend(temporal.VALIDATED_ENV_VARS) after the initial VALIDATED_ENV_VARS definition
+if ! grep -q "VALIDATED_ENV_VARS.extend(temporal.VALIDATED_ENV_VARS)" src/backend/conf/__init__.py; then
+    # Find the closing bracket of VALIDATED_ENV_VARS and add the extend statement after it
+    "${SED_INPLACE[@]}" '/^VALIDATED_ENV_VARS = \[/,/^\]/{
+        /^\]/a\
+\
+VALIDATED_ENV_VARS.extend(temporal.VALIDATED_ENV_VARS)
+    }' src/backend/conf/__init__.py
+    echo "✅ Added VALIDATED_ENV_VARS.extend(temporal.VALIDATED_ENV_VARS) to conf/__init__.py"
+else
+    echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf/__init__.py"
+fi
+
+# Create the workflows directory if it doesn't exist
+mkdir -p src/backend/workflows
+
+# Create the __init__.py file for the workflows module if it doesn't exist
+if [ ! -f src/backend/workflows/__init__.py ]; then
+    echo ""
+    echo "📝 Creating workflows registry..."
+    cat > src/backend/workflows/__init__.py << 'EOF'
+"""
+Temporal workflows and activities registry.
+
+All workflows and activities are automatically registered here.
+"""
+
+# Import workflows and activities here
+# They will be auto-added by the add-temporal-workflow tool
+
+# Registry of all workflows and activities
+WORKFLOWS = [
+]
+
+ACTIVITIES = [
+]
+EOF
+    echo "✅ Created src/backend/workflows/__init__.py"
+fi
+
+echo ""
+echo "✅ Temporal client setup complete!"
+echo ""
+echo "⚠️  No workflows have been created yet. To get started, call the tool to add workflows."
+echo ""
+echo "Next steps:"
+echo "  1. Call `__polytope__run(tool: {{ project-name }}-add-temporal-workflow, name: placeholder)` to add a temporal workflow."
+echo ""
+echo "  2. The workflow will be automatically registered and initialized"
+echo ""
+echo "  3. Access the Temporal client in your routes:"
+echo "     temporal_client = request.app.state.temporal_client"

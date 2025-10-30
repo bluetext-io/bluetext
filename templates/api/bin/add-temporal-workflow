@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+# Create a new Temporal workflow with activity scaffolding
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+workflows_dir=src/backend/workflows
+
+# Function to echo (can be silenced)
+echoh() {
+    if [ "${SILENT_OUTPUT:-}" != "true" ]; then
+        echo "$@"
+    fi
+}
+
+# Function to convert kebab-case to snake_case
+kebab_to_snake() {
+    echo "$1" | sed 's/-/_/g'
+}
+
+# Function to convert kebab-case to PascalCase
+kebab_to_pascal() {
+    local input="$1"
+    # Convert hyphens and underscores to spaces, then capitalize each word
+    echo "$input" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1' | sed 's/ //g'
+}
+
+# Function to convert to lowercase
+to_lower() {
+    echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+# Function to ensure workflows directory and __init__.py exist
+ensure_workflows_structure() {
+    # Create workflows directory if it doesn't exist
+    if [ ! -d "$workflows_dir" ]; then
+        mkdir -p "$workflows_dir"
+        echoh "📁 Created workflows directory: $workflows_dir"
+    fi
+
+    # Create __init__.py if it doesn't exist
+    local init_file="${workflows_dir}/__init__.py"
+    if [ ! -f "$init_file" ]; then
+        cat > "$init_file" << 'EOF'
+"""
+Temporal workflows and activities registry.
+
+All workflows and activities are automatically registered here.
+"""
+
+# Import workflows and activities here
+# They will be auto-added by the add-temporal-workflow tool
+
+# Registry of all workflows and activities
+WORKFLOWS = [
+]
+
+ACTIVITIES = [
+]
+EOF
+        echoh "📄 Created workflows __init__.py: $init_file"
+    fi
+}
+
+# Function to create workflow file
+create_workflow_file() {
+    local workflow_name="$1"
+    local snake_name=$(kebab_to_snake "$workflow_name")
+    local pascal_name=$(kebab_to_pascal "$workflow_name")
+    local workflow_file="${workflows_dir}/${snake_name}.py"
+
+    if [ -f "$workflow_file" ]; then
+        echoh "📄 Workflow file already exists: $workflow_file"
+        return 1
+    fi
+
+    cat > "$workflow_file" << EOF
+"""
+${pascal_name} workflow using Pydantic models for type-safe data transfer.
+
+This demonstrates the recommended patterns for Temporal workflows:
+1. Using Pydantic models instead of raw parameters
+2. Proper activity and workflow structure
+3. Clear separation of concerns between orchestration and execution
+"""
+from datetime import timedelta
+
+from pydantic import BaseModel
+from temporalio import activity, workflow
+
+#### Constants ####
+
+ACTIVITY_TIMEOUT_SECONDS = 10
+
+#### Models ####
+
+class ${pascal_name}Input(BaseModel):
+    """
+    Pydantic model for input.
+
+    NOTE: Binary data should be base64-encoded as strings. Complex objects may
+    need custom converters. The pydantic_data_converter handles Pydantic model
+    serialization automatically.
+    """
+    placeholder: str
+
+
+class ${pascal_name}Response(BaseModel):
+    """Pydantic model for outputs."""
+    placeholder: str
+
+#### Activities ####
+
+@activity.defn
+def ${snake_name}_activity(input: ${pascal_name}Input) -> ${pascal_name}Response:
+    """
+    Base activity for the ${pascal_name} workflow.
+    """
+    activity.logger.info(f"Running activity with parameter {input}")
+
+    return ${pascal_name}Response(
+        placeholder=input.placeholder
+    )
+
+#### Workflows ####
+
+@workflow.defn
+class ${pascal_name}Workflow:
+    """
+    Workflows orchestrate activities and define the business logic flow.
+
+    Workflows must be deterministic - avoid random numbers, current time, or external
+    API calls directly in workflow code. Use activities for non-deterministic
+    operations.
+    """
+
+    @workflow.run
+    async def run(self, name: str, placeholder: str = "placeholder") -> ${pascal_name}Response:
+        """
+        The main workflow entry point.
+
+        This method defines the workflow's execution logic. It can:
+        - Execute activities with retries and timeouts
+        - Make decisions based on activity results
+        - Handle errors and compensate for failures
+        - Wait for external signals or timers
+        """
+        workflow.logger.info(f"Running workflow with parameter {name}")
+
+        result = await workflow.execute_activity(
+            ${snake_name}_activity,
+            args=[${pascal_name}Input(placeholder=placeholder)],
+            start_to_close_timeout=timedelta(seconds=ACTIVITY_TIMEOUT_SECONDS),
+        )
+
+        return result
+EOF
+
+    echoh "✅ Created workflow file: $workflow_file"
+    return 0
+}
+
+# Function to update workflows/__init__.py
+update_workflows_init() {
+    local workflow_name="$1"
+    local snake_name=$(kebab_to_snake "$workflow_name")
+    local pascal_name=$(kebab_to_pascal "$workflow_name")
+    local init_file="${workflows_dir}/__init__.py"
+
+    # Check if already imported
+    if grep -q "from .${snake_name} import ${pascal_name}Workflow" "$init_file" 2>/dev/null; then
+        echoh "✓ Workflow already registered in $init_file"
+        return 0
+    fi
+
+    # Add import statement
+    import_line="from .${snake_name} import ${pascal_name}Workflow, ${snake_name}_activity"
+
+    # Find where to insert the import (after the docstring)
+    if grep -q "# Import workflows and activities here" "$init_file"; then
+        # Add after the comment on a new line
+        awk '/# They will be auto-added by the add-temporal-workflow tool/ {print; print "'"$import_line"'"; next} 1' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+    else
+        # Append at the end of imports section
+        echo "$import_line" >> "$init_file"
+    fi
+
+    # Update WORKFLOWS list
+    if grep -q "WORKFLOWS = \[" "$init_file"; then
+        # Add to WORKFLOWS list (not as a string, but as a class reference)
+        workflow_entry="    ${pascal_name}Workflow,"
+
+        # Add before the closing bracket of WORKFLOWS
+        awk -v entry="$workflow_entry" '
+            /^WORKFLOWS = \[/,/^\]/ {
+                if (/^\]/ && !workflow_added) {
+                    print entry
+                    workflow_added = 1
+                }
+            }
+            1
+        ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+    fi
+
+    # Update ACTIVITIES list
+    if grep -q "ACTIVITIES = \[" "$init_file"; then
+        # Add to ACTIVITIES list
+        activity_entry="    ${snake_name}_activity,"
+
+        # Add before the closing bracket of ACTIVITIES
+        awk -v entry="$activity_entry" '
+            /^ACTIVITIES = \[/,/^\]/ {
+                if (/^\]/ && !activity_added) {
+                    print entry
+                    activity_added = 1
+                }
+            }
+            1
+        ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+    fi
+
+    echoh "📝 Registered workflow and activity in $init_file"
+}
+
+# Main script
+main() {
+    # Parse arguments
+    local workflow_name=""
+
+    if [[ $# -eq 1 ]]; then
+        workflow_name="$1"
+    else
+        echo "Usage: $0 <workflow-name>"
+        echo ""
+        echo "Scaffold a new Temporal workflow with activity"
+        exit 0
+    fi
+
+    echoh "📦 Creating Temporal workflow: $workflow_name"
+    echoh ""
+
+    # Ensure workflows directory structure exists
+    ensure_workflows_structure
+
+    # Convert workflow name to snake_case for file paths
+    local snake_name=$(kebab_to_snake "$workflow_name")
+    local pascal_name=$(kebab_to_pascal "$workflow_name")
+
+    # Create the workflow file
+    create_workflow_file "$workflow_name"
+
+    # Update __init__.py
+    update_workflows_init "$workflow_name"
+
+    echoh ""
+    echoh "🎉 Workflow created successfully!"
+    echoh ""
+    echoh "Next steps:"
+    echoh "0. READ the generated workflow file first to understand the structure:"
+    echoh "   ${workflows_dir}/${snake_name}.py"
+    echoh ""
+    echoh "1. Edit the workflow file to define your input/output models and logic:"
+    echoh "   ${workflows_dir}/${snake_name}.py"
+    echoh ""
+    echoh "2. Implement your activity logic (avoid non-deterministic operations in workflows)"
+    echoh ""
+    echoh "3. Use the workflow in your routes:"
+    echoh "   from temporalio.client import Client"
+    echoh "   from backend.workflows.${snake_name} import ${pascal_name}Workflow"
+    echoh ""
+    echoh "   # Get client from FastAPI app state"
+    echoh "   temporal_client = request.app.state.temporal_client"
+    echoh ""
+    echoh "   # Start workflow with direct parameters"
+    echoh "   handle = await temporal_client.start_workflow("
+    echoh "       ${pascal_name}Workflow.run,"
+    echoh "       args=[\"workflow-name\", \"example-value\"],"
+    echoh "       id=\"${snake_name}-\${uuid4()}\","
+    echoh "       task_queue=\"main-task-queue\""
+    echoh "   )"
+    echoh ""
+    echoh "   # Get result"
+    echoh "   result = await handle.result()"
+}
+
+# Run main function
+main "$@"

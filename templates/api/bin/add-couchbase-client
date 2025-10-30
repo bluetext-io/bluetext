@@ -29,7 +29,7 @@ echo "📝 Adding Couchbase environment variables to polytope.yml..."
 # Check if COUCHBASE_HOST already exists in the env section
 if ! grep -q "COUCHBASE_HOST" polytope.yml; then
     # Find the line with "env:" and add Couchbase env vars after the last env var
-    # We'll insert after TEMPORAL_TASK_QUEUE or the last env var we find
+    # Insert after TEMPORAL_TASK_QUEUE or last env var
     if grep -q "TEMPORAL_TASK_QUEUE" polytope.yml; then
         "${SED_INPLACE[@]}" "/TEMPORAL_TASK_QUEUE/a\\
 \\
@@ -145,30 +145,24 @@ EOF
 
 echo "✅ Created src/backend/conf/couchbase.py"
 
-# Create the init directory if it doesn't exist
-mkdir -p src/backend/init
-
-# Create the __init__.py file for the init module if it doesn't exist
-if [ ! -f src/backend/init/__init__.py ]; then
-    touch src/backend/init/__init__.py
-    echo "✅ Created src/backend/init/__init__.py"
-fi
-
-# Create the couchbase init file
+# Create the init/couchbase.py file with initialization logic
 echo ""
-echo "📝 Creating Couchbase initialization file..."
+echo "📝 Creating init/couchbase.py with initialization logic..."
 
 cat > src/backend/init/couchbase.py << 'EOF'
+"""Couchbase client initialization and deinitialization."""
+
 from fastapi import FastAPI
 
 from couchbase_client import CouchbaseClient
-
 from ..conf.couchbase import get_couchbase_conf
+from ..couchbase.collections import COLLECTIONS
 from ..utils.log import get_logger
 
 logger = get_logger(__name__)
 
-async def init(app: FastAPI):
+
+async def init_couchbase(app: FastAPI) -> None:
     """Initialize Couchbase client and collections."""
     logger.info("Initializing Couchbase client...")
     couchbase_config = get_couchbase_conf()
@@ -176,18 +170,16 @@ async def init(app: FastAPI):
     await app.state.couchbase_client.init_connection()
     logger.info("Couchbase client connected successfully")
 
-    # Initialize collections if they exist
-    try:
-        from ..couchbase.collections import COLLECTIONS
+    if not COLLECTIONS:
+        logger.info("No Couchbase collections found. You can add collections using the add-couchbase-collection tool.")
+    else:
         logger.info(f"Initializing {len(COLLECTIONS)} Couchbase collection(s)...")
         for Collection in COLLECTIONS:
             await Collection(app.state.couchbase_client).initialize()
-        logger.info("All Couchbase collections initialized successfully")
-    except ImportError:
-        # No collections module yet, that's fine
-        logger.info("No Couchbase collections found. You can add collections using the add-couchbase-collection tool.")
+        logger.info(f"All {len(COLLECTIONS)} Couchbase collection(s) initialized successfully")
 
-async def deinit(app: FastAPI):
+
+async def deinit_couchbase(app: FastAPI) -> None:
     """Close Couchbase client connection."""
     logger.info("Closing Couchbase client connection...")
     await app.state.couchbase_client.close()
@@ -195,6 +187,39 @@ async def deinit(app: FastAPI):
 EOF
 
 echo "✅ Created src/backend/init/couchbase.py"
+
+# Inject Couchbase initialization calls into init/__init__.py
+echo ""
+echo "📝 Injecting Couchbase initialization calls into init/__init__.py..."
+
+# Check if couchbase initialization is already present
+if grep -q "init_couchbase" src/backend/init/__init__.py; then
+    echo "ℹ️  Couchbase initialization already present in init/__init__.py"
+else
+    # Add import at the top of the file (after FastAPI import)
+    "${SED_INPLACE[@]}" '/^from fastapi import FastAPI$/a\
+\
+from .couchbase import init_couchbase, deinit_couchbase
+' src/backend/init/__init__.py
+
+    # Inject init call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def init(app: FastAPI) -> None:/,/^async def deinit/{
+        /""".*"""/{
+            a\
+    await init_couchbase(app)
+        }
+    }' src/backend/init/__init__.py
+
+    # Inject deinit call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def deinit(app: FastAPI) -> None:/,${
+        /""".*"""/{
+            a\
+    await deinit_couchbase(app)
+        }
+    }' src/backend/init/__init__.py
+
+    echo "✅ Injected Couchbase initialization calls into init/__init__.py"
+fi
 
 # Update the main conf/__init__.py file to import couchbase configuration
 echo ""
@@ -224,51 +249,37 @@ else
     echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf/__init__.py"
 fi
 
-# Note: Couchbase initialization is handled dynamically in main.py
-# The import happens within try/except blocks to allow graceful handling
-# when Couchbase is not yet configured
+# Create the couchbase/collections directory if it doesn't exist
+mkdir -p src/backend/couchbase/collections
 
-# Add the Couchbase initialization to main.py lifespan
-echo ""
-echo "📝 Adding Couchbase initialization to main.py..."
-
-# Check if Couchbase initialization already exists in main.py
-if ! grep -q "await couchbase.init(app)" src/backend/main.py; then
-    # Find the yield statement in the lifespan function and add Couchbase init before it
-    "${SED_INPLACE[@]}" '/^[[:space:]]*yield/i\
-\
-    # Initialize Couchbase client if configured\
-    try:\
-        from .init import couchbase\
-        await couchbase.init(app)\
-    except ImportError:\
-        # Couchbase not configured yet\
-        pass
-' src/backend/main.py
-else
-    echo "ℹ️  Couchbase initialization already exists in main.py"
+# Create the __init__.py file for the couchbase module if it doesn't exist
+if [ ! -f src/backend/couchbase/__init__.py ]; then
+    touch src/backend/couchbase/__init__.py
+    echo "✅ Created src/backend/couchbase/__init__.py"
 fi
 
-# Add the Couchbase cleanup to main.py lifespan
-echo ""
-echo "📝 Adding Couchbase cleanup to main.py..."
+# Create the __init__.py file for the collections module if it doesn't exist
+if [ ! -f src/backend/couchbase/collections/__init__.py ]; then
+    echo ""
+    echo "📝 Creating collections registry..."
+    cat > src/backend/couchbase/collections/__init__.py << 'EOF'
+"""
+Couchbase collections registry.
 
-# Check if Couchbase cleanup already exists in main.py
-if ! grep -q "await couchbase.deinit(app)" src/backend/main.py; then
-    # Add cleanup after yield in the lifespan function, before other cleanups
-    "${SED_INPLACE[@]}" '/^[[:space:]]*yield/a\
-\
-    # Clean up Couchbase client if configured\
-    if hasattr(app.state, "couchbase_client"):\
-        try:\
-            from .init import couchbase\
-            await couchbase.deinit(app)\
-        except Exception as e:\
-            logger.warning(f"Error cleaning up Couchbase: {e}")
-' src/backend/main.py
-    echo "✅ Added Couchbase cleanup to main.py lifespan"
-else
-    echo "ℹ️  Couchbase cleanup already exists in main.py"
+All collections are automatically registered here.
+"""
+
+# Import collections here
+# Example:
+# from .users import UserCollection
+
+# Registry of all collections
+COLLECTIONS = [
+    # Add collection classes here
+    # Example: UserCollection
+]
+EOF
+    echo "✅ Created src/backend/couchbase/collections/__init__.py"
 fi
 
 echo ""
@@ -277,5 +288,5 @@ echo ""
 echo "You can now:"
 echo "  1. Import and use the Couchbase client in your code:"
 echo "     from couchbase_client import CouchbaseClient"
-echo "  2. The initialization is handled automatically in src/backend/init/couchbase.py"
-echo "  3. Add new collections using the Polytope tool: pt {{ project-name }}-add-couchbase-collection <collection-name>"
+echo "  2. Initialization is handled automatically in src/backend/init/couchbase.py"
+echo "  3. Call `__polytope__run(tool: {{ project-name }}-add-couchbase-collection, name: placeholder)` to add couchbase collections."

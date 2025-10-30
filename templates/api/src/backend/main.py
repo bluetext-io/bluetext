@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from .utils import log
 from .routes.base import router
 from . import conf
+from .init import init, deinit
 
 log.init(conf.get_log_level())
 logger = log.get_logger(__name__)
@@ -54,7 +55,13 @@ async def lifespan(app: FastAPI):
         await app.state.twilio_client.initialize()
         await app.state.twilio_client.init_connection()
 
+    # Initialize all registered components
+    await init(app)
+
     yield
+
+    # Deinitialize all registered components
+    await deinit(app)
 
     # Clean up PostgreSQL client if enabled
     if conf.USE_POSTGRES:
