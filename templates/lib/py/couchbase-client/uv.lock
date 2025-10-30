@@ -1,0 +1,34 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[[package]]
+name = "couchbase"
+version = "4.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/73/2f/8f92e743a91c2f4e2ebad0bcfc31ef386c817c64415d89bf44e64dde227a/couchbase-4.5.0.tar.gz", hash = "sha256:fb74386ea5e807ae12cfa294fa6740fe6be3ecaf3bb9ce4fb9ea73706ed05982", size = 6562752, upload-time = "2025-09-30T01:27:37.423Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/bc/3b00403edd8b188a93f48b8231dbf7faf7b40d318d3e73bb0e68c4965bbd/couchbase-4.5.0-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:be1ac2bf7cbccf28eebd7fa8b1d7199fbe84c96b0f7f2c0d69963b1d6ce53985", size = 5128307, upload-time = "2025-09-30T01:25:53.615Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/52/2ccfa8c8650cc341813713a47eeeb8ad13a25e25b0f4747d224106602a24/couchbase-4.5.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:035c394d38297c484bd57fc92b27f6a571a36ab5675b4ec873fd15bf65e8f28e", size = 4326149, upload-time = "2025-09-30T01:25:57.524Z" },
+    { url = "https://files.pythonhosted.org/packages/32/80/fe3f074f321474c824ec67b97c5c4aa99047d45c777bb29353f9397c6604/couchbase-4.5.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:117685f6827abbc332e151625b0a9890c2fafe0d3c3d9e564b903d5c411abe5d", size = 5184623, upload-time = "2025-09-30T01:26:02.166Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/e5/86381f49e4cf1c6db23c397b6a32b532cd4df7b9975b0cd2da3db2ffe269/couchbase-4.5.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:632a918f81a7373832991b79b6ab429e56ef4ff68dfb3517af03f0e2be7e3e4f", size = 5446579, upload-time = "2025-09-30T01:26:09.39Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/85/a68d04233a279e419062ceb1c6866b61852c016d1854cd09cde7f00bc53c/couchbase-4.5.0-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:67fc0fd1a4535b5be093f834116a70fb6609085399e6b63539241b919da737b7", size = 6104619, upload-time = "2025-09-30T01:26:15.525Z" },
+    { url = "https://files.pythonhosted.org/packages/56/8c/0511bac5dd2d998aeabcfba6a2804ecd9eb3d83f9d21cc3293a56fbc70a8/couchbase-4.5.0-cp312-cp312-win_amd64.whl", hash = "sha256:02199b4528f3106c231c00aaf85b7cc6723accbc654b903bb2027f78a04d12f4", size = 4274424, upload-time = "2025-09-30T01:26:21.484Z" },
+    { url = "https://files.pythonhosted.org/packages/70/6d/6f6c4ed72f7def240168e48da7c95a81dd45cfe5599bfaaab040ea55c481/couchbase-4.5.0-cp313-cp313-macosx_10_15_x86_64.whl", hash = "sha256:3ca889d708cf82743ec33b2a1cb09211cf55d353297a29e1147f78e6ae05c609", size = 5040068, upload-time = "2025-09-30T01:26:27.367Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/1f/e31c68a177cd13f8a83c3e52fc16cf42ede696e5cdaea0ad7e1d0781c9d8/couchbase-4.5.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:d8f69cf185426e5f68a239fb1ce395187b0f31a536e1b2624d20b5b3387fa5d8", size = 4326068, upload-time = "2025-09-30T01:26:32.027Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/b2/365ce79459b2a462903698435d67417f5aa11bb8220d853979486dc03284/couchbase-4.5.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:3dddab6fbbe1e44283f41783031728030678e8c9065c2f7a726812e5699c66f5", size = 5184604, upload-time = "2025-09-30T01:26:36.439Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/c2/30d395d01279f47813e4e323297380e8d9c431891529922f3bee407b3c15/couchbase-4.5.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:b52a554a36185bd94f04885c3e1822227058a49526d5378162dfa3f3e76fd17e", size = 5446707, upload-time = "2025-09-30T01:26:40.619Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/55/4f60cd09e009cbdc705354f9b29e57638a4dcefbf1b3f13d61e5881f5bf4/couchbase-4.5.0-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:74d00d52128a34f75e908f3ebb16bd33edee82a6695453126a969e1d2c101a86", size = 6104769, upload-time = "2025-09-30T01:26:46.165Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/fc/ca70bb20c4a52b71504381c019fe742dcf46815fee3adef4b41a3885eff8/couchbase-4.5.0-cp313-cp313-win_amd64.whl", hash = "sha256:0891eca025a2078fb89389053ac925ef7fa9323631300b60eb749e8a71f9ec1c", size = 4270510, upload-time = "2025-09-30T01:26:50.227Z" },
+]
+
+[[package]]
+name = "couchbase-client"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "couchbase" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "couchbase", specifier = ">=4.4.0" }]

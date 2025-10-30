@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from .utils import log
 from .routes.base import router
 from . import conf
+from .init import init, deinit
 
 log.init(conf.get_log_level())
 logger = log.get_logger(__name__)
@@ -26,19 +27,6 @@ async def lifespan(app: FastAPI):
 
         # Create tables after connection is established
         await app.state.postgres_client.create_tables(SQLModel.metadata)
-
-    # Initialize Couchbase client if enabled
-    if conf.USE_COUCHBASE:
-        from .clients.couchbase import CouchbaseClient
-        couchbase_config = conf.get_couchbase_conf()
-        app.state.couchbase_client = CouchbaseClient(couchbase_config)
-        await app.state.couchbase_client.init_connection()
-
-        # Import and initialize all Couchbase collections
-        from .couchbase.collections import COLLECTIONS
-        for Collection in COLLECTIONS:
-            await Collection(app.state.couchbase_client).initialize()
-
 
     # Initialize auth client if enabled
     if conf.USE_AUTH:
@@ -67,15 +55,17 @@ async def lifespan(app: FastAPI):
         await app.state.twilio_client.initialize()
         await app.state.twilio_client.init_connection()
 
+    # Initialize all registered components
+    await init(app)
+
     yield
+
+    # Deinitialize all registered components
+    await deinit(app)
 
     # Clean up PostgreSQL client if enabled
     if conf.USE_POSTGRES:
         await app.state.postgres_client.close()
-
-    # Clean up Couchbase client if enabled
-    if conf.USE_COUCHBASE:
-        await app.state.couchbase_client.close()
 
     # Clean up Temporal client if enabled
     if conf.USE_TEMPORAL:

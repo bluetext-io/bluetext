@@ -32,6 +32,34 @@ to_upper() {
     echo "$1" | tr '[:lower:]' '[:upper:]'
 }
 
+# Function to ensure collections directory and __init__.py exist
+ensure_collections_structure() {
+    # Create collections directory if it doesn't exist
+    if [ ! -d "$collections_dir" ]; then
+        mkdir -p "$collections_dir"
+        echoh "📁 Created collections directory: $collections_dir"
+    fi
+
+    # Create __init__.py if it doesn't exist
+    local init_file="${collections_dir}/__init__.py"
+    if [ ! -f "$init_file" ]; then
+        cat > "$init_file" << 'EOF'
+"""
+Couchbase collection bindings.
+
+All collection classes should be imported here.
+"""
+# Import all collection classes here
+# They will be auto-added by the add-couchbase-collection tool
+
+# Export all collections
+COLLECTIONS = [
+]
+EOF
+        echoh "📄 Created collections __init__.py: $init_file"
+    fi
+}
+
 # Function to create collection file
 create_collection_file() {
     local collection_name="$1"
@@ -53,7 +81,7 @@ Bindings for working with the '${snake_name}' collection.
 from pydantic import BaseModel
 from uuid import UUID
 
-from ...clients.couchbase import CouchbaseClient
+from couchbase_client import CouchbaseClient
 
 
 # The type used for keys in this collection.
@@ -155,17 +183,20 @@ update_collections_init() {
         return 0
     fi
 
-    # Add import statement
+    # Detect OS for sed compatibility
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        SED_INPLACE=(sed -i '')
+    else
+        SED_INPLACE=(sed -i)
+    fi
+
+    # Add import statement before the "# Registry of all collections" comment
     import_line="from .${snake_name} import ${pascal_name}Collection"
 
-    # Find where to insert the import (after the docstring)
-    if grep -q "# Import all collection classes here" "$init_file"; then
-        # Add after the comment on a new line
-        awk '/# They will be auto-added by the add-couchbase-collection tool/ {print; print "'"$import_line"'"; next} 1' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
-    else
-        # Append at the end of imports section
-        echo "$import_line" >> "$init_file"
-    fi
+    # Insert import before the "# Registry of all collections" comment line
+    "${SED_INPLACE[@]}" "/# Registry of all collections/i\\
+${import_line}
+" "$init_file"
 
     # Update COLLECTIONS list
     if grep -q "COLLECTIONS = \[" "$init_file"; then

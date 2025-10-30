@@ -2,9 +2,23 @@
 
 . "$(dirname "$0")/init"
 
-if [ -f /etc/os-release ] && grep -q Alpine /etc/os-release; then
-  apk add -q --no-progress --no-cache watchexec
-  exec watchexec --watch pyproject.toml --restart --shell=none -- uv run --active app
+CMD="uv run --active app"
+
+if [ -f /etc/os-release ]; then
+  DISTRO=$(cat /etc/os-release | grep '^NAME' | sed 's/.*"\([^ "]*\)[ "].*/\1/')
+
+  if [ "$DISTRO" = "Alpine Linux" ]; then
+    apk add -q --no-progress --no-cache watchexec
+  elif [ "$DISTRO" = "Ubuntu" ] || [ "$DISTRO" = "Debian" ]; then
+    apt-get update -qq
+    apt-get install -qq -y wget
+    wget -q https://github.com/watchexec/watchexec/releases/download/v2.3.2/watchexec-2.3.2-aarch64-unknown-linux-musl.deb -O /tmp/watchexec.deb
+    dpkg -i /tmp/watchexec.deb
+    rm /tmp/watchexec.deb
+  fi
+
+  exec watchexec --watch pyproject.toml --restart --shell=none -- $CMD
 else
-  exec uv run --active app
+  exec $CMD
 fi
+

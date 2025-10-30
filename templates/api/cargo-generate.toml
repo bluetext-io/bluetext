@@ -1,0 +1,4 @@
+[template]
+ignore = [
+  "bin/add-couchbase-collection"
+]

@@ -48,6 +48,7 @@ tools:
             - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
           mounts:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
+            - { path: /lib/py, source: { type: repo, path: /lib/py, repo: "#pt-clj pt/module-project-ref" } }
   {{ project-name }}-add:
     info: Adds one or more packages to the pyproject.toml file.
     params:
@@ -58,20 +59,53 @@ tools:
       - tool: {{ project-name }}
         args:
           id: {{ project-name }}-add
-          restart-policy: on-failure
-          cmd: '#pt-js "uv add --no-progress " + params.packages.replace(/[\s,]+/g, " ")'
+          restart-policy: never
+          cmd: '#pt-js "./bin/add-dependencies " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
 
-  {{ project-name }}-add-couchbase-collection:
-    info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
-    params:
-      - id: name
-        info: Scaffolds a new Couchbase collection with CRUD operations, Pydantic models, and automatic integration.
-        type: str
+  {{ project-name }}-add-couchbase-client:
+    info: Adds Couchbase client library with all interaction functions and registers add-couchbase-collection tool to polytope.yml.
+    params: []
+    await: [add-couchbase-scripts, add-couchbase-client]
     run:
-      - tool: {{ project-name }}
+      - tool: polytope/scaffold
+        id: add-couchbase-scripts
         args:
-          id: {{ project-name }}-add-couchbase-collection
+          actions:
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/couchbase-client}
+              path: /lib/py/couchbase-client
+              on-conflict: skip
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-couchbase-collection}
+              path: /modules/api/bin/add-couchbase-collection
+              on-conflict: skip
+      - tool: {{ project-name }}
+        after: { step: add-couchbase-scripts }
+        id: add-couchbase-client
+        args:
+          id: api-add-couchbase-client
+          cmd: ./bin/add-couchbase-client
           restart-policy: never
-          cmd: ./bin/add-couchbase-collection {pt.param name}
-          create: always
+
+  {{ project-name }}-add-temporal-client:
+    info: Adds Temporal client library with workflow orchestration support and registers add-temporal-workflow tool to polytope.yml. 
+    params: []
+    await: [add-temporal-scripts, add-temporal-client]
+    run:
+      - tool: polytope/scaffold
+        id: add-temporal-scripts
+        args:
+          actions:
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/temporal-client}
+              path: /lib/py/temporal-client
+              on-conflict: skip
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-temporal-workflow}
+              path: /modules/api/bin/add-temporal-workflow
+              on-conflict: skip
+
+      - tool: {{ project-name }}
+        after: { step: add-temporal-scripts }
+        id: add-temporal-client
+        args:
+          id: api-add-temporal-client
+          cmd: ./bin/add-temporal-client
+          restart-policy: never

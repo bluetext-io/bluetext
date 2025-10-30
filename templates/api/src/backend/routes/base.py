@@ -65,7 +65,6 @@ async def health_check(
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "features": {
                 "postgres": conf.USE_POSTGRES,
-                "couchbase": conf.USE_COUCHBASE,
                 "temporal": conf.USE_TEMPORAL,
                 "twilio": conf.USE_TWILIO,
                 "auth": conf.USE_AUTH,
@@ -116,7 +115,7 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 
     # Check Couchbase if requested
     if not services_filter or "couchbase" in services_filter:
-        if conf.USE_COUCHBASE:
+        if hasattr(request.app.state, 'couchbase_client'):
             couchbase_client = request.app.state.couchbase_client
             couchbase_health = couchbase_client.health_check()
             health_status["couchbase"] = couchbase_health
@@ -124,8 +123,8 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
                 health_status["status"] = "degraded"
         else:
             health_status["couchbase"] = {
-                "status": "disabled",
-                "message": "Couchbase is disabled (USE_COUCHBASE=False)"
+                "status": "not_configured",
+                "message": "Couchbase client not configured (run add-couchbase-client to set up)"
             }
 
     # Check Temporal if requested (with timeout protection)
