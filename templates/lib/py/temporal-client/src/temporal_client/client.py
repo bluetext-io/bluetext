@@ -144,12 +144,16 @@ class TemporalClient:
     async def close(self):
         """Close Temporal client and worker"""
         # Cancel connection retry loop
+
         if self._connection_task:
             self._connection_task.cancel()
             try:
                 await self._connection_task
             except asyncio.CancelledError:
                 pass
+
+        if self._worker:
+            await self._worker.shutdown()
 
         # Cancel worker task
         if self._worker_task:
