@@ -25,25 +25,15 @@ echo "📝 Adding Temporal environment variables to polytope.yml..."
 
 # Check if TEMPORAL_HOST already exists in the env section
 if ! grep -q "TEMPORAL_HOST" polytope.yml; then
-    # Find the line with "env:" and add Temporal env vars after the last env var
-    # We'll insert after COUCHBASE_PROTOCOL or LOG_LEVEL if those exist
-    if grep -q "COUCHBASE_PROTOCOL" polytope.yml; then
-        "${SED_INPLACE[@]}" "/COUCHBASE_PROTOCOL/a\\
-\\
-            - { name: TEMPORAL_HOST, value: temporal }\\
-            - { name: TEMPORAL_PORT, value: 7233 }\\
-            - { name: TEMPORAL_NAMESPACE, value: default }\\
+    # Add Temporal env vars as last entries in the api tool env block (right before mounts:)
+    "${SED_INPLACE[@]}" '/^  api:/,/^  [a-z-]*:/{
+        /^          mounts:/i\
+\
+            - { name: TEMPORAL_HOST, value: temporal }\
+            - { name: TEMPORAL_PORT, value: 7233 }\
+            - { name: TEMPORAL_NAMESPACE, value: default }\
             - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
-" polytope.yml
-    elif grep -q "LOG_LEVEL" polytope.yml; then
-        "${SED_INPLACE[@]}" "/LOG_LEVEL/a\\
-\\
-            - { name: TEMPORAL_HOST, value: temporal }\\
-            - { name: TEMPORAL_PORT, value: 7233 }\\
-            - { name: TEMPORAL_NAMESPACE, value: default }\\
-            - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
-" polytope.yml
-    fi
+    }' polytope.yml
     echo "✅ Added Temporal environment variables to polytope.yml"
 else
     echo "ℹ️  Temporal environment variables already exist in polytope.yml"
