@@ -28,28 +28,16 @@ echo "📝 Adding Couchbase environment variables to polytope.yml..."
 
 # Check if COUCHBASE_HOST already exists in the env section
 if ! grep -q "COUCHBASE_HOST" polytope.yml; then
-    # Find the line with "env:" and add Couchbase env vars after the last env var
-    # Insert after TEMPORAL_TASK_QUEUE or last env var
-    if grep -q "TEMPORAL_TASK_QUEUE" polytope.yml; then
-        "${SED_INPLACE[@]}" "/TEMPORAL_TASK_QUEUE/a\\
-\\
-            - { name: COUCHBASE_HOST, value: couchbase }\\
-            - { name: COUCHBASE_USERNAME, value: user }\\
-            - { name: COUCHBASE_PASSWORD, value: password }\\
-            - { name: COUCHBASE_BUCKET, value: default }\\
+    # Add Couchbase env vars as last entries in the api tool env block (right before mounts:)
+    "${SED_INPLACE[@]}" '/^  api:/,/^  [a-z-]*:/{
+        /^          mounts:/i\
+\
+            - { name: COUCHBASE_HOST, value: couchbase }\
+            - { name: COUCHBASE_USERNAME, value: user }\
+            - { name: COUCHBASE_PASSWORD, value: password }\
+            - { name: COUCHBASE_BUCKET, value: main }\
             - { name: COUCHBASE_PROTOCOL, value: couchbase }
-" polytope.yml
-    else
-        # If TEMPORAL_TASK_QUEUE doesn't exist, add after LOG_LEVEL or another env var
-        "${SED_INPLACE[@]}" "/LOG_LEVEL/a\\
-\\
-            - { name: COUCHBASE_HOST, value: couchbase }\\
-            - { name: COUCHBASE_USERNAME, value: user }\\
-            - { name: COUCHBASE_PASSWORD, value: password }\\
-            - { name: COUCHBASE_BUCKET, value: default }\\
-            - { name: COUCHBASE_PROTOCOL, value: couchbase }
-" polytope.yml
-    fi
+    }' polytope.yml
     echo "✅ Added Couchbase environment variables to polytope.yml"
 else
     echo "ℹ️  Couchbase environment variables already exist in polytope.yml"
