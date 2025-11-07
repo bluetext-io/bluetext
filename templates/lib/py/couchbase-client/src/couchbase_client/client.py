@@ -78,8 +78,6 @@ class Keyspace:
 class CouchbaseClient:
     """
     Clean Couchbase client for basic operations.
-
-    Only initializes if USE_COUCHBASE is True in configuration.
     """
 
     def __init__(self, config: CouchbaseConf, auto_create: bool = True):
