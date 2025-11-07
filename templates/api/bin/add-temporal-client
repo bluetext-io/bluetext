@@ -204,11 +204,20 @@ echo "📝 Updating src/backend/conf/__init__.py to include Temporal configurati
 if ! grep -q "from . import temporal" src/backend/conf/__init__.py; then
     # Add the import after the line with "from ..utils.env import EnvVarSpec"
     "${SED_INPLACE[@]}" '/from \.\.utils\.env import EnvVarSpec/a\
-from . import temporal
+from . import temporal\
+from .temporal import get_temporal_conf
 ' src/backend/conf/__init__.py
     echo "✅ Added temporal import to conf/__init__.py"
 else
     echo "ℹ️  Temporal import already exists in conf/__init__.py"
+fi
+
+# Add getter function export if not already present
+if ! grep -q "from .temporal import get_temporal_conf" src/backend/conf/__init__.py; then
+    "${SED_INPLACE[@]}" '/from \. import temporal/a\
+from .temporal import get_temporal_conf
+' src/backend/conf/__init__.py
+    echo "✅ Added get_temporal_conf export to conf/__init__.py"
 fi
 
 # Add VALIDATED_ENV_VARS.extend(temporal.VALIDATED_ENV_VARS) after the initial VALIDATED_ENV_VARS definition

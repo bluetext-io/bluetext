@@ -217,11 +217,20 @@ echo "📝 Updating src/backend/conf/__init__.py to include Couchbase configurat
 if ! grep -q "from . import couchbase" src/backend/conf/__init__.py; then
     # Add the import after the line with "from ..utils.env import EnvVarSpec"
     "${SED_INPLACE[@]}" '/from \.\.utils\.env import EnvVarSpec/a\
-from . import couchbase
+from . import couchbase\
+from .couchbase import get_couchbase_conf
 ' src/backend/conf/__init__.py
     echo "✅ Added couchbase import to conf/__init__.py"
 else
     echo "ℹ️  Couchbase import already exists in conf/__init__.py"
+fi
+
+# Add getter function export if not already present
+if ! grep -q "from .couchbase import get_couchbase_conf" src/backend/conf/__init__.py; then
+    "${SED_INPLACE[@]}" '/from \. import couchbase/a\
+from .couchbase import get_couchbase_conf
+' src/backend/conf/__init__.py
+    echo "✅ Added get_couchbase_conf export to conf/__init__.py"
 fi
 
 # Add VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS) after the initial VALIDATED_ENV_VARS definition
