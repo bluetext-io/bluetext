@@ -76,7 +76,7 @@ tools:
               path: /lib/py/couchbase-client
               on-conflict: skip
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-couchbase-collection}
-              path: /modules/api/bin/add-couchbase-collection
+              path: /modules/{{ project-name }}/bin/add-couchbase-collection
               on-conflict: skip
       - tool: {{ project-name }}
         after: { step: add-couchbase-scripts }
@@ -99,7 +99,7 @@ tools:
               path: /lib/py/temporal-client
               on-conflict: skip
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-temporal-workflow}
-              path: /modules/api/bin/add-temporal-workflow
+              path: /modules/{{ project-name }}/bin/add-temporal-workflow
               on-conflict: skip
 
       - tool: {{ project-name }}
