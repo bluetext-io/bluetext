@@ -10,9 +10,14 @@ FastAPI template with PostgreSQL, Couchbase, Temporal, and Twilio support - desi
 ```mcp
 __polytope__get_container_logs(container: {{ project-name }}, limit: 50)
 ```
+**ALWAYS run the list-tools tool after running a tool that adds code to the project?**
+list_tools 
+When adding any new technology into the project or support for one in a subproject then check the polytope.yml files to see the tools at the agents disposal
+
 Look for import errors, syntax errors, or runtime exceptions. The hot reload will show if your code loaded successfully or if there are any errors.
 
 **Note**: If this project was created using the `add-api` tool, your API service runs in a container that you can access and observe through MCP commands.
+
 
 ## Quick Start
 
@@ -85,7 +90,7 @@ async def protected_route(principal: RequestPrincipal):
 
 ### Temporal Workflows
 
-Quick Setup - ALWAYS follow this pattern before setting up Temporal.
+Quick Setup - ALWAYS follow this pattern before setting up Temporal. 
 
 1. Call `__polytope__add-temporal()` to add the Temporal Server to the project and start it.
 2. Call `__polytope__run(tool: {{ project-name }}-add-temporal-client)` to add our Temporal client to this project. This tool will also give you instructions on how to proceed.

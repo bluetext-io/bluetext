@@ -22,4 +22,6 @@ tools:
             - { name: REDPANDA_PORT, value: 9092 }
           mounts:
             - { path: /conf/, source: { type: repo, path: conf }}
-            - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache } }
+            - { path: /seeds/, source: { type: repo, path: seeds }}
+            - { path: /root/.cache/, source: { type: volume, scope: project, id: dependency-cache  }}
+

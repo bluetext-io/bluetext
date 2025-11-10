@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # Add the couchbase-client library as an editable dependency
-
+# ONLY run this script with the add-couchbase-client tool. NEVER run it by itself.
+# Add-couchbase-client-tool:
+# ```mcp
+# __polytope__{{ project-name }}-add-couchbase-client()
+# ```
+# if this tool is not available call it with the run tool
+# Run tool:
+#
+# ```mcp
+# __polytope__run(tool: {{ project-name }}-add-couchbase-client)
+# ```
+#
+#
 set -e
 
 # Change to the api directory
