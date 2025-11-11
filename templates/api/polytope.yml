@@ -41,11 +41,6 @@ tools:
             - { name: LOG_LEVEL, value: INFO }
 
             - { name: POSTGRES_HOST, value: postgres }
-
-            - { name: TEMPORAL_HOST, value: temporal }
-            - { name: TEMPORAL_PORT, value: 7233 }
-            - { name: TEMPORAL_NAMESPACE, value: default }
-            - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
           mounts:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
             - { path: /lib/py, source: { type: repo, path: /lib/py, repo: "#pt-clj pt/module-project-ref" } }
