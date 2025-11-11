@@ -13,4 +13,29 @@ readonly CACHE="${HOME}/.cache"
 . "$(dirname "$0")/lib/pip_install"
 
 cd "$ROOT"
-exec python src/main.py "$@"
+
+CMD="python src/main.py"
+
+if [ -f /etc/os-release ]; then
+  DISTRO=$(cat /etc/os-release | grep '^NAME' | sed 's/.*"\([^ "]*\)[ "].*/\1/')
+
+  if [ "$DISTRO" = "Alpine" ]; then
+    apk add -q --no-progress --no-cache watchexec
+  elif [ "$DISTRO" = "Ubuntu" ] || [ "$DISTRO" = "Debian" ]; then
+    apt-get update -qq
+    apt-get install -qq -y wget
+    ARCH=$(dpkg --print-architecture)
+    if [ "$ARCH" = "arm64" ]; then
+      WATCHEXEC_ARCH="aarch64"
+    else
+      WATCHEXEC_ARCH="x86_64"
+    fi
+    wget -q https://github.com/watchexec/watchexec/releases/download/v2.3.2/watchexec-2.3.2-${WATCHEXEC_ARCH}-unknown-linux-musl.deb -O /tmp/watchexec.deb
+    dpkg -i /tmp/watchexec.deb
+    rm /tmp/watchexec.deb
+  fi
+
+  exec watchexec --watch conf/seeds --watch conf --restart --shell=none -- $CMD
+else
+  exec $CMD
+fi
