@@ -1,0 +1,410 @@
+#!/usr/bin/env bash
+# Create a new SQLModel table class with basic scaffolding
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+models_file=src/backend/db/models.py
+
+# Function to echo (can be silenced)
+echoh() {
+    if [ "${SILENT_OUTPUT:-}" != "true" ]; then
+        echo "$@"
+    fi
+}
+
+# Function to convert kebab-case to snake_case
+kebab_to_snake() {
+    echo "$1" | sed 's/-/_/g'
+}
+
+# Function to convert kebab-case to PascalCase
+kebab_to_pascal() {
+    local input="$1"
+    # Convert hyphens and underscores to spaces, then capitalize each word
+    echo "$input" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1' | sed 's/ //g'
+}
+
+# Function to convert to lowercase
+to_lower() {
+    echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+# Function to ensure models.py exists
+ensure_models_file() {
+    if [ ! -f "$models_file" ]; then
+        mkdir -p "$(dirname "$models_file")"
+        cat > "$models_file" << 'EOF'
+"""
+Database models using SQLModel.
+
+IMPORTANT: All SQLModel table classes defined in this file are automatically
+registered when this module is imported. The app's lifespan function in main.py
+imports this module and creates the tables during startup.
+
+To add a new model:
+1. Define your class with SQLModel and table=True
+2. The table will be automatically created on next startup
+3. Add any necessary database functions below the model definitions
+"""
+
+from sqlmodel import SQLModel, Field, select
+import sqlalchemy as sa
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, List
+from datetime import datetime
+from uuid import UUID
+from .utils import pk_field
+
+# Define your models here
+EOF
+        echoh "📄 Created models file: $models_file"
+    fi
+}
+
+# Function to add model to models.py
+add_model_to_file() {
+    local model_name="$1"
+    local snake_name=$(kebab_to_snake "$model_name")
+    local pascal_name=$(kebab_to_pascal "$model_name")
+    local lower_name=$(to_lower "$snake_name")
+    local table_name="${lower_name}s"  # Pluralize for table name
+
+    # Check if model already exists
+    if grep -q "class ${pascal_name}(SQLModel, table=True):" "$models_file" 2>/dev/null; then
+        echoh "ℹ️  Model ${pascal_name} already exists in $models_file"
+        return 1
+    fi
+
+    # Add the model class and CRUD functions
+    cat >> "$models_file" << EOF
+
+
+class ${pascal_name}(SQLModel, table=True):
+    """${pascal_name} database model."""
+    __tablename__ = "${table_name}"
+
+    id: UUID = pk_field()
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+
+    # TODO: Add your fields here
+    # Example fields:
+    # email: str = Field(unique=True, index=True)
+    # is_active: bool = Field(default=True)
+    # age: Optional[int] = Field(default=None, ge=0, le=120)
+
+
+# ${pascal_name} CRUD Operations
+
+async def create_${snake_name}(session: AsyncSession, ${snake_name}: ${pascal_name}) -> ${pascal_name}:
+    """
+    Create a new ${snake_name}.
+
+    DO NOT call session.commit() here!
+    The DBSession dependency in routes/utils.py handles all commits automatically.
+    Only use session.add(), session.execute(), etc. Never commit or rollback.
+    """
+    session.add(${snake_name})
+    await session.flush()  # Get the ID without committing
+    return ${snake_name}
+
+
+async def get_${snake_name}(session: AsyncSession, ${snake_name}_id: UUID) -> Optional[${pascal_name}]:
+    """Get a ${snake_name} by ID."""
+    statement = select(${pascal_name}).where(${pascal_name}.id == ${snake_name}_id)
+    result = await session.execute(statement)
+    return result.scalar_one_or_none()
+
+
+async def get_${snake_name}_by_name(session: AsyncSession, name: str) -> Optional[${pascal_name}]:
+    """Get a ${snake_name} by name."""
+    statement = select(${pascal_name}).where(${pascal_name}.name == name)
+    result = await session.execute(statement)
+    return result.scalar_one_or_none()
+
+
+async def list_${table_name}(
+    session: AsyncSession,
+    skip: int = 0,
+    limit: int = 100
+) -> List[${pascal_name}]:
+    """List all ${table_name} with pagination."""
+    statement = select(${pascal_name}).offset(skip).limit(limit)
+    result = await session.execute(statement)
+    return result.scalars().all()
+
+
+async def update_${snake_name}(
+    session: AsyncSession,
+    ${snake_name}_id: UUID,
+    ${snake_name}_update: dict
+) -> Optional[${pascal_name}]:
+    """
+    Update a ${snake_name}.
+
+    DO NOT call session.commit() here!
+    The DBSession dependency handles commits automatically.
+    """
+    ${snake_name} = await get_${snake_name}(session, ${snake_name}_id)
+    if not ${snake_name}:
+        return None
+
+    # Update the updated_at timestamp
+    ${snake_name}_update["updated_at"] = datetime.utcnow()
+
+    # Update fields
+    for field, value in ${snake_name}_update.items():
+        setattr(${snake_name}, field, value)
+
+    session.add(${snake_name})
+    await session.flush()
+    return ${snake_name}
+
+
+async def delete_${snake_name}(session: AsyncSession, ${snake_name}_id: UUID) -> bool:
+    """
+    Delete a ${snake_name}.
+
+    DO NOT call session.commit() here!
+    The DBSession dependency handles commits automatically.
+    """
+    ${snake_name} = await get_${snake_name}(session, ${snake_name}_id)
+    if not ${snake_name}:
+        return False
+
+    await session.delete(${snake_name})
+    await session.flush()
+    return True
+EOF
+
+    echoh "✅ Added model ${pascal_name} to $models_file"
+    return 0
+}
+
+# Function to create example route file
+create_example_route() {
+    local model_name="$1"
+    local snake_name=$(kebab_to_snake "$model_name")
+    local pascal_name=$(kebab_to_pascal "$model_name")
+    local lower_name=$(to_lower "$snake_name")
+    local table_name="${lower_name}s"  # Pluralize for table name
+    local routes_dir="src/backend/routes"
+    local route_file="${routes_dir}/${table_name}.py"
+
+    # Skip if file already exists
+    if [ -f "$route_file" ]; then
+        echoh "ℹ️  Route file already exists: $route_file"
+        return
+    fi
+
+    cat > "$route_file" << EOF
+"""
+API routes for ${pascal_name} operations.
+"""
+
+from typing import List, Optional
+from uuid import UUID
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+
+from ..routes.utils import DBSession
+from ..db.models import (
+    ${pascal_name},
+    create_${snake_name},
+    get_${snake_name},
+    get_${snake_name}_by_name,
+    list_${table_name},
+    update_${snake_name},
+    delete_${snake_name}
+)
+
+router = APIRouter(prefix="/${table_name}", tags=["${table_name}"])
+
+
+# Pydantic models for request/response
+
+class ${pascal_name}Create(BaseModel):
+    """Schema for creating a ${snake_name}."""
+    name: str
+    description: Optional[str] = None
+    # TODO: Add your fields here to match the SQLModel
+
+
+class ${pascal_name}Update(BaseModel):
+    """Schema for updating a ${snake_name}."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    # TODO: Add your fields here to match the SQLModel
+
+
+class ${pascal_name}Response(BaseModel):
+    """Schema for ${snake_name} response."""
+    id: UUID
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    # TODO: Add your fields here to match the SQLModel
+
+    class Config:
+        from_attributes = True
+
+
+# API Routes
+
+@router.post("/", response_model=${pascal_name}Response)
+async def create_${snake_name}_endpoint(
+    ${snake_name}_data: ${pascal_name}Create,
+    session=Depends(DBSession)
+):
+    """Create a new ${snake_name}."""
+    # Check if name already exists
+    existing = await get_${snake_name}_by_name(session, ${snake_name}_data.name)
+    if existing:
+        raise HTTPException(status_code=400, detail="${pascal_name} with this name already exists")
+
+    ${snake_name} = ${pascal_name}.model_validate(${snake_name}_data)
+    result = await create_${snake_name}(session, ${snake_name})
+    return result
+
+
+@router.get("/{${snake_name}_id}", response_model=${pascal_name}Response)
+async def get_${snake_name}_endpoint(
+    ${snake_name}_id: UUID,
+    session=Depends(DBSession)
+):
+    """Get a ${snake_name} by ID."""
+    ${snake_name} = await get_${snake_name}(session, ${snake_name}_id)
+    if not ${snake_name}:
+        raise HTTPException(status_code=404, detail="${pascal_name} not found")
+    return ${snake_name}
+
+
+@router.get("/", response_model=List[${pascal_name}Response])
+async def list_${table_name}_endpoint(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    session=Depends(DBSession)
+):
+    """List all ${table_name} with pagination."""
+    ${table_name} = await list_${table_name}(session, skip=skip, limit=limit)
+    return ${table_name}
+
+
+@router.patch("/{${snake_name}_id}", response_model=${pascal_name}Response)
+async def update_${snake_name}_endpoint(
+    ${snake_name}_id: UUID,
+    ${snake_name}_update: ${pascal_name}Update,
+    session=Depends(DBSession)
+):
+    """Update a ${snake_name}."""
+    updated = await update_${snake_name}(
+        session,
+        ${snake_name}_id,
+        ${snake_name}_update.model_dump(exclude_unset=True)
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="${pascal_name} not found")
+    return updated
+
+
+@router.delete("/{${snake_name}_id}")
+async def delete_${snake_name}_endpoint(
+    ${snake_name}_id: UUID,
+    session=Depends(DBSession)
+):
+    """Delete a ${snake_name}."""
+    success = await delete_${snake_name}(session, ${snake_name}_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="${pascal_name} not found")
+    return {"message": "${pascal_name} deleted successfully"}
+EOF
+
+    echoh "📄 Created example route file: $route_file"
+    echoh ""
+    echoh "⚠️  Remember to register this router in your main router file:"
+    echoh "    from .${table_name} import router as ${table_name}_router"
+    echoh "    router.include_router(${table_name}_router)"
+}
+
+# Main script
+main() {
+    # Parse arguments
+    local model_name=""
+    local create_routes=false
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --with-routes)
+                create_routes=true
+                shift
+                ;;
+            *)
+                if [ -z "$model_name" ]; then
+                    model_name="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [ -z "$model_name" ]; then
+        echo "Usage: $0 <model-name> [--with-routes]"
+        echo ""
+        echo "Scaffold a new SQLModel table class with CRUD operations"
+        echo ""
+        echo "Options:"
+        echo "  --with-routes    Also create an example API route file"
+        exit 0
+    fi
+
+    echoh "📦 Creating PostgreSQL model: $model_name"
+    echoh ""
+
+    # Ensure models file exists
+    ensure_models_file
+
+    # Convert model name to snake_case and PascalCase
+    local snake_name=$(kebab_to_snake "$model_name")
+    local pascal_name=$(kebab_to_pascal "$model_name")
+
+    # Add the model to models.py
+    add_model_to_file "$model_name"
+
+    # Create example route if requested
+    if [ "$create_routes" = true ]; then
+        echoh ""
+        create_example_route "$model_name"
+    fi
+
+    echoh ""
+    echoh "🎉 Model created successfully!"
+    echoh ""
+    echoh "Next steps:"
+    echoh "1. Edit the model in: $models_file"
+    echoh "   - Add your custom fields"
+    echoh "   - Update the CRUD functions if needed"
+    echoh ""
+    echoh "2. Use the model in your routes:"
+    echoh "   from ..routes.utils import DBSession"
+    echoh "   from ..db.models import ${pascal_name}, create_${snake_name}, get_${snake_name}"
+    echoh ""
+    echoh "   @router.post('/${snake_name}')"
+    echoh "   async def create(data: dict, session=Depends(DBSession)):"
+    echoh "       ${snake_name} = ${pascal_name}(**data)"
+    echoh "       return await create_${snake_name}(session, ${snake_name})"
+    echoh ""
+    if [ "$create_routes" != true ]; then
+        echoh "💡 Tip: Use --with-routes flag to also generate example API routes"
+    fi
+}
+
+# Run main function
+main "$@"
