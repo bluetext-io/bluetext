@@ -35,7 +35,7 @@ if [ -f /etc/os-release ]; then
     rm /tmp/watchexec.deb
   fi
 
-  exec watchexec --watch conf/seeds --watch conf --restart --shell=none -- $CMD
+  exec watchexec --watch conf --restart --shell=none -- $CMD
 else
   exec $CMD
 fi
