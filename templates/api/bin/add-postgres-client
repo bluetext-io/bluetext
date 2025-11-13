@@ -1,0 +1,345 @@
+#!/usr/bin/env bash
+# Add PostgreSQL client and database support to the API
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+# Detect OS for sed compatibility
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    SED_INPLACE=(sed -i '')
+else
+    SED_INPLACE=(sed -i)
+fi
+
+echo "📦 Adding PostgreSQL client and database support..."
+
+# Add required dependencies
+echo ""
+echo "📝 Installing PostgreSQL dependencies..."
+$(dirname "$0")/uv add sqlmodel psycopg-pool psycopg[binary]
+
+# Add PostgreSQL environment variables to polytope.yml if they don't exist
+echo ""
+echo "📝 Adding PostgreSQL environment variables to polytope.yml..."
+
+# Check if POSTGRES_HOST already exists in the env section
+if ! grep -q "POSTGRES_HOST" polytope.yml; then
+    # Add PostgreSQL env vars as last entries in the api tool env block (right before mounts:)
+    "${SED_INPLACE[@]}" '/^  api:/,/^  [a-z-]*:/{
+        /^          mounts:/i\
+\
+            - { name: POSTGRES_DB, value: postgres }\
+            - { name: POSTGRES_USER, value: postgres }\
+            - { name: POSTGRES_PASSWORD, value: postgres }\
+            - { name: POSTGRES_HOST, value: postgres }\
+            - { name: POSTGRES_PORT, value: 5432 }\
+            - { name: POSTGRES_POOL_MIN, value: 1 }\
+            - { name: POSTGRES_POOL_MAX, value: 10 }
+    }' polytope.yml
+    echo "✅ Added PostgreSQL environment variables to polytope.yml"
+else
+    echo "ℹ️  PostgreSQL environment variables already exist in polytope.yml"
+fi
+
+# Add the add-postgres-model tool to polytope.yml if it doesn't already exist
+if ! grep -q "{{ project-name }}-add-postgres-model:" polytope.yml; then
+    echo ""
+    echo "📝 Adding add-postgres-model tool to polytope.yml..."
+
+    cat >> polytope.yml << 'EOF'
+
+  {{ project-name }}-add-postgres-model:
+    info: Scaffold a new SQLModel table class with CRUD operations
+    params:
+      - id: name
+        info: Creates a new SQLModel table class with basic CRUD operations and automatic migration support
+        type: str
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add-postgres-model
+          restart-policy: never
+          cmd: ./bin/add-postgres-model {pt.param name}
+          create: always
+EOF
+
+    echo "✅ Added add-postgres-model tool to polytope.yml"
+fi
+
+# Create the PostgreSQL configuration file
+echo ""
+echo "📝 Creating PostgreSQL configuration file..."
+
+# Create the postgres.py configuration file
+cat > src/backend/conf/postgres.py << 'EOF'
+from pydantic import BaseModel
+
+from ..utils import auth, env, log
+from ..utils.env import EnvVarSpec
+
+#### Env Vars ####
+
+POSTGRES_DB = EnvVarSpec(
+    id="POSTGRES_DB",
+    default="postgres"
+)
+
+POSTGRES_USER = EnvVarSpec(
+    id="POSTGRES_USER",
+    default="postgres"
+)
+
+POSTGRES_PASSWORD = EnvVarSpec(
+    id="POSTGRES_PASSWORD",
+    default="postgres",
+    is_secret=True
+)
+
+POSTGRES_HOST = EnvVarSpec(
+    id="POSTGRES_HOST",
+    default="postgres"
+)
+
+POSTGRES_PORT = EnvVarSpec(
+    id="POSTGRES_PORT",
+    parse=int,
+    default="5432",
+    type=(int, ...)
+)
+
+POSTGRES_POOL_MIN = EnvVarSpec(
+    id="POSTGRES_POOL_MIN",
+    parse=int,
+    default="1",
+    type=(int, ...)
+)
+
+POSTGRES_POOL_MAX = EnvVarSpec(
+    id="POSTGRES_POOL_MAX",
+    parse=int,
+    default="10",
+    type=(int, ...)
+)
+
+VALIDATED_ENV_VARS = [
+    POSTGRES_DB,
+    POSTGRES_USER,
+    POSTGRES_PASSWORD,
+    POSTGRES_HOST,
+    POSTGRES_PORT,
+    POSTGRES_POOL_MIN,
+    POSTGRES_POOL_MAX,
+]
+
+#### Getters ####
+
+def get_postgres_conf():
+    """Get PostgreSQL connection configuration."""
+    from ..clients.postgres import PostgresConf
+    return PostgresConf(
+        database=env.parse(POSTGRES_DB),
+        user=env.parse(POSTGRES_USER),
+        password=env.parse(POSTGRES_PASSWORD),
+        host=env.parse(POSTGRES_HOST),
+        port=env.parse(POSTGRES_PORT),
+    )
+
+def get_postgres_pool_conf():
+    """Get PostgreSQL pool configuration."""
+    from ..clients.postgres import PostgresPoolConf
+    return PostgresPoolConf(
+        min_size=env.parse(POSTGRES_POOL_MIN),
+        max_size=env.parse(POSTGRES_POOL_MAX),
+    )
+EOF
+
+echo "✅ Created src/backend/conf/postgres.py"
+
+# Copy the PostgreSQL client file
+echo ""
+echo "📝 Creating PostgreSQL client file..."
+cp src/backend/postgres-temp/postgres.py src/backend/clients/postgres.py
+echo "✅ Created src/backend/clients/postgres.py"
+
+# Create the db directory and files if they don't exist
+echo ""
+echo "📝 Creating database models directory..."
+mkdir -p src/backend/db
+
+# Copy db files from postgres template
+cp src/backend/postgres-temp/db/__init__.py src/backend/db/__init__.py
+cp src/backend/postgres-temp/db/models.py src/backend/db/models.py
+cp src/backend/postgres-temp/db/utils.py src/backend/db/utils.py
+echo "✅ Created database models directory and files"
+
+# Clean up temporary postgres files
+rm -rf src/backend/postgres-temp
+echo "✅ Cleaned up temporary files"
+
+# Create the init/postgres.py file with initialization logic
+echo ""
+echo "📝 Creating init/postgres.py with initialization logic..."
+
+cat > src/backend/init/postgres.py << 'EOF'
+"""PostgreSQL client initialization and deinitialization."""
+
+from fastapi import FastAPI
+from sqlmodel import SQLModel
+
+from ..clients.postgres import PostgresClient
+from ..conf.postgres import get_postgres_conf, get_postgres_pool_conf
+from ..utils.log import get_logger
+# Import models to register them with SQLModel
+from ..db import models  # noqa: F401
+
+logger = get_logger(__name__)
+
+
+async def init_postgres(app: FastAPI) -> None:
+    """Initialize PostgreSQL client and create tables."""
+    logger.info("Initializing PostgreSQL client...")
+    postgres_config = get_postgres_conf()
+    pool_config = get_postgres_pool_conf()
+
+    app.state.postgres_client = PostgresClient(postgres_config, pool_config)
+    await app.state.postgres_client.initialize()
+    await app.state.postgres_client.init_connection()
+    logger.info("PostgreSQL client connected successfully")
+
+    # Create tables after connection is established
+    logger.info("Creating database tables...")
+    await app.state.postgres_client.create_tables(SQLModel.metadata)
+    logger.info("Database tables initialized")
+
+
+async def deinit_postgres(app: FastAPI) -> None:
+    """Close PostgreSQL client connection."""
+    logger.info("Closing PostgreSQL client connection...")
+    await app.state.postgres_client.close()
+    logger.info("PostgreSQL client connection closed")
+EOF
+
+echo "✅ Created src/backend/init/postgres.py"
+
+# Inject PostgreSQL initialization calls into init/__init__.py
+echo ""
+echo "📝 Injecting PostgreSQL initialization calls into init/__init__.py..."
+
+# Check if postgres initialization is already present
+if grep -q "init_postgres" src/backend/init/__init__.py; then
+    echo "ℹ️  PostgreSQL initialization already present in init/__init__.py"
+else
+    # Add import at the top of the file (after FastAPI import)
+    "${SED_INPLACE[@]}" '/^from fastapi import FastAPI$/a\
+\
+from .postgres import init_postgres, deinit_postgres
+' src/backend/init/__init__.py
+
+    # Inject init call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def init(app: FastAPI) -> None:/,/^async def deinit/{
+        /""".*"""/{
+            a\
+    await init_postgres(app)
+        }
+    }' src/backend/init/__init__.py
+
+    # Inject deinit call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def deinit(app: FastAPI) -> None:/,${
+        /""".*"""/{
+            a\
+    await deinit_postgres(app)
+        }
+    }' src/backend/init/__init__.py
+
+    echo "✅ Injected PostgreSQL initialization calls into init/__init__.py"
+fi
+
+# Update the main conf/__init__.py file to import postgres configuration
+echo ""
+echo "📝 Updating src/backend/conf/__init__.py to include PostgreSQL configuration..."
+
+# Remove the USE_POSTGRES flag line if it exists
+"${SED_INPLACE[@]}" '/^USE_POSTGRES = /d' src/backend/conf/__init__.py
+
+# Add import at the top of the file (after the existing imports)
+if ! grep -q "from . import postgres" src/backend/conf/__init__.py; then
+    # Add the import after the line with "from ..utils.env import EnvVarSpec"
+    "${SED_INPLACE[@]}" '/from \.\.utils\.env import EnvVarSpec/a\
+from . import postgres\
+from .postgres import get_postgres_conf, get_postgres_pool_conf
+' src/backend/conf/__init__.py
+    echo "✅ Added postgres import to conf/__init__.py"
+else
+    echo "ℹ️  PostgreSQL import already exists in conf/__init__.py"
+fi
+
+# Add getter function exports if not already present
+if ! grep -q "from .postgres import get_postgres_conf" src/backend/conf/__init__.py; then
+    "${SED_INPLACE[@]}" '/from \. import postgres/a\
+from .postgres import get_postgres_conf, get_postgres_pool_conf
+' src/backend/conf/__init__.py
+    echo "✅ Added get_postgres_conf and get_postgres_pool_conf exports to conf/__init__.py"
+fi
+
+# Add VALIDATED_ENV_VARS.extend(postgres.VALIDATED_ENV_VARS) after the initial VALIDATED_ENV_VARS definition
+if ! grep -q "VALIDATED_ENV_VARS.extend(postgres.VALIDATED_ENV_VARS)" src/backend/conf/__init__.py; then
+    # Find the closing bracket of VALIDATED_ENV_VARS and add the extend statement after it
+    "${SED_INPLACE[@]}" '/^VALIDATED_ENV_VARS = \[/,/^\]/{
+        /^\]/a\
+\
+VALIDATED_ENV_VARS.extend(postgres.VALIDATED_ENV_VARS)
+    }' src/backend/conf/__init__.py
+    echo "✅ Added VALIDATED_ENV_VARS.extend(postgres.VALIDATED_ENV_VARS) to conf/__init__.py"
+else
+    echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf/__init__.py"
+fi
+
+# Create DBSession dependency in routes/utils.py if not present
+echo ""
+echo "📝 Updating routes/utils.py with DBSession dependency..."
+
+# Check if DBSession is already defined
+if ! grep -q "async def DBSession" src/backend/routes/utils.py; then
+    cat >> src/backend/routes/utils.py << 'EOF'
+
+
+async def DBSession(request: Request):
+    """
+    Dependency that provides a database session.
+    Automatically commits on success and rolls back on error.
+
+    Usage in routes:
+        @router.post("/users")
+        async def create_user(user: UserCreate, session=Depends(DBSession)):
+            db_user = User.model_validate(user)
+            session.add(db_user)
+            await session.flush()  # Get the ID without committing
+            return db_user
+    """
+    async with request.app.state.postgres_client.get_session() as session:
+        yield session
+EOF
+    echo "✅ Added DBSession dependency to routes/utils.py"
+else
+    echo "ℹ️  DBSession dependency already exists in routes/utils.py"
+fi
+
+echo ""
+echo "✅ PostgreSQL client setup complete!"
+echo ""
+echo "Next steps:"
+echo "  1. Scaffold models with: __polytope__run(tool: {{ project-name }}-add-postgres-model, name: <model-name>)"
+echo "  2. Edit model files in src/backend/db/models.py"
+echo "  3. Use DBSession dependency in your routes for database operations"
+echo ""
+echo "Example usage in routes:"
+echo "  from ..routes.utils import DBSession"
+echo "  from sqlmodel import select"
+echo "  from ..db.models import User"
+echo ""
+echo "  @router.get('/users')"
+echo "  async def get_users(session=Depends(DBSession)):"
+echo "      result = await session.execute(select(User))"
+echo "      return result.scalars().all()"
