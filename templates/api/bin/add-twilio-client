@@ -13,12 +13,9 @@ else
     SED_INPLACE=(sed -i)
 fi
 
-echo "📦 Adding Twilio SMS client support..."
+echo "📦 Adding twilio-client library as editable dependency..."
 
-# Add required dependencies
-echo ""
-echo "📝 Installing Twilio dependency..."
-$(dirname "$0")/uv add twilio
+$(dirname "$0")/uv add --editable ../lib/py/twilio-client
 
 # Add Twilio environment variables to polytope.yml if they don't exist
 echo ""
@@ -79,7 +76,7 @@ VALIDATED_ENV_VARS = [
 
 def get_twilio_conf():
     """Get Twilio configuration."""
-    from ..clients.twilio import TwilioConf
+    from twilio_client import TwilioConf
     return TwilioConf(
         account_sid=env.parse(TWILIO_ACCOUNT_SID),
         auth_token=env.parse(TWILIO_AUTH_TOKEN),
@@ -88,16 +85,6 @@ def get_twilio_conf():
 EOF
 
 echo "✅ Created src/backend/conf/twilio.py"
-
-# Copy the Twilio client file
-echo ""
-echo "📝 Creating Twilio client file..."
-cp src/backend/twilio-temp/twilio.py src/backend/clients/twilio.py
-echo "✅ Created src/backend/clients/twilio.py"
-
-# Clean up temporary twilio files
-rm -rf src/backend/twilio-temp
-echo "✅ Cleaned up temporary files"
 
 # Create the init/twilio.py file with initialization logic
 echo ""
@@ -108,7 +95,7 @@ cat > src/backend/init/twilio.py << 'EOF'
 
 from fastapi import FastAPI
 
-from ..clients.twilio import TwilioClient
+from twilio_client import TwilioClient
 from ..conf.twilio import get_twilio_conf
 from ..utils.log import get_logger
 

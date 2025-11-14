@@ -13,12 +13,9 @@ else
     SED_INPLACE=(sed -i)
 fi
 
-echo "📦 Adding PostgreSQL client and database support..."
+echo "📦 Adding postgres-client library as editable dependency..."
 
-# Add required dependencies
-echo ""
-echo "📝 Installing PostgreSQL dependencies..."
-$(dirname "$0")/uv add sqlmodel psycopg-pool psycopg[binary]
+$(dirname "$0")/uv add --editable ../lib/py/postgres-client
 
 # Add PostgreSQL environment variables to polytope.yml if they don't exist
 echo ""
@@ -137,7 +134,7 @@ VALIDATED_ENV_VARS = [
 
 def get_postgres_conf():
     """Get PostgreSQL connection configuration."""
-    from ..clients.postgres import PostgresConf
+    from postgres_client import PostgresConf
     return PostgresConf(
         database=env.parse(POSTGRES_DB),
         user=env.parse(POSTGRES_USER),
@@ -148,7 +145,7 @@ def get_postgres_conf():
 
 def get_postgres_pool_conf():
     """Get PostgreSQL pool configuration."""
-    from ..clients.postgres import PostgresPoolConf
+    from postgres_client import PostgresPoolConf
     return PostgresPoolConf(
         min_size=env.parse(POSTGRES_POOL_MIN),
         max_size=env.parse(POSTGRES_POOL_MAX),
@@ -157,26 +154,16 @@ EOF
 
 echo "✅ Created src/backend/conf/postgres.py"
 
-# Copy the PostgreSQL client file
-echo ""
-echo "📝 Creating PostgreSQL client file..."
-cp src/backend/postgres-temp/postgres.py src/backend/clients/postgres.py
-echo "✅ Created src/backend/clients/postgres.py"
-
 # Create the db directory and files if they don't exist
 echo ""
 echo "📝 Creating database models directory..."
 mkdir -p src/backend/db
 
 # Copy db files from postgres template
-cp src/backend/postgres-temp/db/__init__.py src/backend/db/__init__.py
-cp src/backend/postgres-temp/db/models.py src/backend/db/models.py
-cp src/backend/postgres-temp/db/utils.py src/backend/db/utils.py
+cp ../../postgres/db/__init__.py src/backend/db/__init__.py
+cp ../../postgres/db/models.py src/backend/db/models.py
+cp ../../postgres/db/utils.py src/backend/db/utils.py
 echo "✅ Created database models directory and files"
-
-# Clean up temporary postgres files
-rm -rf src/backend/postgres-temp
-echo "✅ Cleaned up temporary files"
 
 # Create the init/postgres.py file with initialization logic
 echo ""
@@ -188,7 +175,7 @@ cat > src/backend/init/postgres.py << 'EOF'
 from fastapi import FastAPI
 from sqlmodel import SQLModel
 
-from ..clients.postgres import PostgresClient
+from postgres_client import PostgresClient
 from ..conf.postgres import get_postgres_conf, get_postgres_pool_conf
 from ..utils.log import get_logger
 # Import models to register them with SQLModel

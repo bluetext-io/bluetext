@@ -74,11 +74,11 @@ async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]
         async def create_user(user: User, session: DBSession):
             return await create_user(session, user)
     """
-    if not conf.USE_POSTGRES:
-        raise HTTPException(status_code=503, detail="PostgreSQL is not configured")
+    if not hasattr(request.app.state, 'postgres_client'):
+        raise HTTPException(status_code=503, detail="PostgreSQL is not configured. Run add-postgres-client to set up PostgreSQL")
 
     postgres_client = request.app.state.postgres_client
-    
+
     async with postgres_client.get_session() as session:
         yield session
 

@@ -1,0 +1,17 @@
+[project]
+name = "twilio-client"
+version = "0.1.0"
+description = "Twilio client library for SMS and messaging operations"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "twilio",
+    "pydantic",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

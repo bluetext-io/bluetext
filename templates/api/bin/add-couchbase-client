@@ -43,29 +43,29 @@ else
     echo "ℹ️  Couchbase environment variables already exist in polytope.yml"
 fi
 
-# Add the add-couchbase-collection tool to polytope.yml if it doesn't already exist
-if ! grep -q "{{ project-name }}-add-couchbase-collection:" polytope.yml; then
+# Add the add-couchbase-model tool to polytope.yml if it doesn't already exist
+if ! grep -q "{{ project-name }}-add-couchbase-model:" polytope.yml; then
     echo ""
-    echo "📝 Adding add-couchbase-collection tool to polytope.yml..."
-    
+    echo "📝 Adding add-couchbase-model tool to polytope.yml..."
+
     cat >> polytope.yml << 'EOF'
 
-  {{ project-name }}-add-couchbase-collection:
+  {{ project-name }}-add-couchbase-model:
     info: Scaffold a new Python script and add it to pyproject.toml. Run this to create test scripts for your agents!
     params:
       - id: name
-        info: Scaffolds a new Couchbase collection with CRUD operations, Pydantic models, and automatic integration.
+        info: Scaffolds a new Couchbase model with CRUD operations, Pydantic models, and automatic integration.
         type: str
     run:
       - tool: {{ project-name }}
         args:
-          id: {{ project-name }}-add-couchbase-collection
+          id: {{ project-name }}-add-couchbase-model
           restart-policy: never
-          cmd: ./bin/add-couchbase-collection {pt.param name}
+          cmd: ./bin/add-couchbase-model {pt.param name}
           create: always
 EOF
-    
-    echo "✅ Added add-couchbase-collection tool to polytope.yml"
+
+    echo "✅ Added add-couchbase-model tool to polytope.yml"
 fi
 
 # Create the Couchbase configuration file
@@ -144,27 +144,27 @@ from fastapi import FastAPI
 
 from couchbase_client import CouchbaseClient
 from ..conf.couchbase import get_couchbase_conf
-from ..couchbase.collections import COLLECTIONS
+from ..couchbase.models import MODELS
 from ..utils.log import get_logger
 
 logger = get_logger(__name__)
 
 
 async def init_couchbase(app: FastAPI) -> None:
-    """Initialize Couchbase client and collections."""
+    """Initialize Couchbase client and models."""
     logger.info("Initializing Couchbase client...")
     couchbase_config = get_couchbase_conf()
     app.state.couchbase_client = CouchbaseClient(couchbase_config)
     await app.state.couchbase_client.init_connection()
     logger.info("Couchbase client connected successfully")
 
-    if not COLLECTIONS:
-        logger.info("No Couchbase collections found. You can add collections using the add-couchbase-collection tool.")
+    if not MODELS:
+        logger.info("No Couchbase models found. You can add models using the add-couchbase-model tool.")
     else:
-        logger.info(f"Initializing {len(COLLECTIONS)} Couchbase collection(s)...")
-        for Collection in COLLECTIONS:
-            await Collection(app.state.couchbase_client).initialize()
-        logger.info(f"All {len(COLLECTIONS)} Couchbase collection(s) initialized successfully")
+        logger.info(f"Initializing {len(MODELS)} Couchbase model(s)...")
+        for Model in MODELS:
+            await Model.initialize(app.state.couchbase_client)
+        logger.info(f"All {len(MODELS)} Couchbase model(s) initialized successfully")
 
 
 async def deinit_couchbase(app: FastAPI) -> None:
@@ -246,8 +246,8 @@ else
     echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf/__init__.py"
 fi
 
-# Create the couchbase/collections directory if it doesn't exist
-mkdir -p src/backend/couchbase/collections
+# Create the couchbase/models directory if it doesn't exist
+mkdir -p src/backend/couchbase/models
 
 # Create the __init__.py file for the couchbase module if it doesn't exist
 if [ ! -f src/backend/couchbase/__init__.py ]; then
@@ -255,28 +255,28 @@ if [ ! -f src/backend/couchbase/__init__.py ]; then
     echo "✅ Created src/backend/couchbase/__init__.py"
 fi
 
-# Create the __init__.py file for the collections module if it doesn't exist
-if [ ! -f src/backend/couchbase/collections/__init__.py ]; then
+# Create the __init__.py file for the models module if it doesn't exist
+if [ ! -f src/backend/couchbase/models/__init__.py ]; then
     echo ""
-    echo "📝 Creating collections registry..."
-    cat > src/backend/couchbase/collections/__init__.py << 'EOF'
+    echo "📝 Creating models registry..."
+    cat > src/backend/couchbase/models/__init__.py << 'EOF'
 """
-Couchbase collections registry.
+Couchbase models registry.
 
-All collections are automatically registered here.
+All models are automatically registered here.
 """
 
-# Import collections here
+# Import models here
 # Example:
-# from .users import UserCollection
+# from .users import UserModel
 
-# Registry of all collections
-COLLECTIONS = [
-    # Add collection classes here
-    # Example: UserCollection
+# Registry of all models
+MODELS = [
+    # Add model classes here
+    # Example: UserModel
 ]
 EOF
-    echo "✅ Created src/backend/couchbase/collections/__init__.py"
+    echo "✅ Created src/backend/couchbase/models/__init__.py"
 fi
 
 echo ""
@@ -286,4 +286,4 @@ echo "You can now:"
 echo "  1. Import and use the Couchbase client in your code:"
 echo "     from couchbase_client import CouchbaseClient"
 echo "  2. Initialization is handled automatically in src/backend/init/couchbase.py"
-echo "  3. Call `__polytope__run(tool: {{ project-name }}-add-couchbase-collection, name: placeholder)` to add couchbase collections."
+echo "  3. Call `__polytope__run(tool: {{ project-name }}-add-couchbase-model, name: placeholder)` to add couchbase models."

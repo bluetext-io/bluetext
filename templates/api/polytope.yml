@@ -64,7 +64,7 @@ tools:
           create: always
 
   {{ project-name }}-add-couchbase-client:
-    info: Run before add-couchbase-collection. Adds Couchbase client library with all interaction functions and registers add-couchbase-collection tool to polytope.yml.
+    info: Run before add-couchbase-model. Adds Couchbase client library with all interaction functions and registers add-couchbase-model tool to polytope.yml.
     params: []
     run:
       - tool: polytope/scaffold
@@ -74,8 +74,8 @@ tools:
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/couchbase-client}
               path: /lib/py/couchbase-client
               on-conflict: skip
-            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-couchbase-collection}
-              path: /modules/api/bin/add-couchbase-collection
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-couchbase-model}
+              path: /modules/api/bin/add-couchbase-model
               on-conflict: skip
 
       - tool: {{ project-name }}
