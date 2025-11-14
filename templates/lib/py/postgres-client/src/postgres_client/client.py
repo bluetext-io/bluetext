@@ -52,11 +52,9 @@ class PostgresClient:
 
     Handles connection pooling, retries, and provides the SQLAlchemy engine
     for SQLModel operations.
-
-    Only initializes if USE_POSTGRES is True in configuration.
     """
 
-    def __init__(self, config: Optional[PostgresConf] = None, pool_config: Optional[PostgresPoolConf] = None):
+    def __init__(self, config: PostgresConf, pool_config: Optional[PostgresPoolConf] = None):
         self._config = config
         self._pool_config = pool_config or PostgresPoolConf()
         self._pool: Optional[AsyncConnectionPool] = None
@@ -256,7 +254,7 @@ class PostgresClient:
     async def get_session(self):
         """
         Get an AsyncSession for SQLModel operations with automatic transaction management.
-        
+
         Usage:
             async with client.get_session() as session:
                 user = User(name="John")
@@ -265,7 +263,7 @@ class PostgresClient:
                 # session.rollback() called automatically on exception
         """
         self._ensure_initialized()
-        
+
         async with AsyncSession(self._engine) as session:
             try:
                 yield session

@@ -41,6 +41,11 @@ tools:
             - { name: LOG_LEVEL, value: INFO }
 
             - { name: POSTGRES_HOST, value: postgres }
+
+            - { name: TEMPORAL_HOST, value: temporal }
+            - { name: TEMPORAL_PORT, value: 7233 }
+            - { name: TEMPORAL_NAMESPACE, value: default }
+            - { name: TEMPORAL_TASK_QUEUE, value: main-task-queue }
           mounts:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
             - { path: /lib/py, source: { type: repo, path: /lib/py, repo: "#pt-clj pt/module-project-ref" } }
@@ -59,48 +64,49 @@ tools:
           create: always
 
   {{ project-name }}-add-couchbase-client:
-    info: Adds Couchbase client library with all interaction functions and registers add-couchbase-collection tool to polytope.yml.
+    info: Run before add-couchbase-model. Adds Couchbase client library with all interaction functions and registers add-couchbase-model tool to polytope.yml.
     params: []
-    await: [add-couchbase-scripts, add-couchbase-client]
     run:
       - tool: polytope/scaffold
-        id: add-couchbase-scripts
+        id: add-couchbase-client
         args:
           actions:
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/couchbase-client}
               path: /lib/py/couchbase-client
               on-conflict: skip
-            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-couchbase-collection}
-              path: /modules/{{ project-name }}/bin/add-couchbase-collection
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-couchbase-model}
+              path: /modules/api/bin/add-couchbase-model
               on-conflict: skip
+
       - tool: {{ project-name }}
-        after: { step: add-couchbase-scripts }
-        id: add-couchbase-client
+        after: { step: add-couchbase-client }
         args:
           id: api-add-couchbase-client
           cmd: ./bin/add-couchbase-client
           restart-policy: never
+      - id: reload-{{ project-name }}
+        tool: {{ project-name }}
 
   {{ project-name }}-add-temporal-client:
-    info: Adds Temporal client library with workflow orchestration support and registers add-temporal-workflow tool to polytope.yml. 
+    info: Adds Temporal client library with workflow orchestration support and registers add-temporal-workflow tool to polytope.yml.
     params: []
-    await: [add-temporal-scripts, add-temporal-client]
     run:
       - tool: polytope/scaffold
-        id: add-temporal-scripts
+        id: add-temporal-client
         args:
           actions:
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/lib/py/temporal-client}
               path: /lib/py/temporal-client
               on-conflict: skip
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-temporal-workflow}
-              path: /modules/{{ project-name }}/bin/add-temporal-workflow
+              path: /modules/api/bin/add-temporal-workflow
               on-conflict: skip
 
       - tool: {{ project-name }}
-        after: { step: add-temporal-scripts }
-        id: add-temporal-client
+        after: { step: add-temporal-client }
         args:
           id: api-add-temporal-client
           cmd: ./bin/add-temporal-client
           restart-policy: never
+      - id: reload-{{ project-name }}
+        tool: {{ project-name }}

@@ -8,7 +8,6 @@ from pathlib import Path
 from config import Config
 from controllers.couchbase_controller import CouchbaseController
 from controllers.redpanda_controller import RedpandaController
-from couchbase_seeder import CouchbaseSeeder
 from utils.logger import get_logger
 
 def get_env_var(name, default=None):
@@ -20,57 +19,6 @@ def get_env_var(name, default=None):
             return os.environ[name]
     except KeyError:
         raise KeyError(f"Environment variable '{name}' is not set")
-
-def process_seed_files(environment, config, logger):
-    """Process seed files from conf/seeds directory."""
-    seeds_dir = Path('conf/seeds')
-
-    if not seeds_dir.exists():
-        logger.debug("📦 No seeds directory found, skipping seed processing")
-        return 0
-
-    # Find all yaml/yml files in seeds directory
-    seed_files = list(seeds_dir.glob('*.yaml')) + list(seeds_dir.glob('*.yml'))
-
-    if not seed_files:
-        logger.debug("📦 No seed files found in conf/seeds")
-        return 0
-
-    logger.info(f"🌱 Found {len(seed_files)} seed file(s) in conf/seeds")
-
-    processed_count = 0
-    for seed_file in seed_files:
-        logger.info(f"🌱 Processing seed file: {seed_file.name}")
-
-        try:
-            # Load the seed file
-            with open(seed_file, 'r') as f:
-                seed_config = yaml.safe_load(f)
-
-            # Determine the type of seed file (couchbase or redpanda)
-            # based on the content or filename
-            if 'buckets' in seed_config:
-                logger.info(f"  └─ Detected Couchbase seed configuration")
-                couchbase_controller = CouchbaseController(environment, config)
-                # Process the seed config directly
-                couchbase_controller._ensure_resources(seed_config)
-                processed_count += 1
-                logger.info(f"  └─ ✅ Couchbase seed processed")
-            elif 'topics' in seed_config:
-                logger.info(f"  └─ Detected Redpanda seed configuration")
-                redpanda_controller = RedpandaController(environment, config)
-                redpanda_controller._ensure_resources(seed_config)
-                processed_count += 1
-                logger.info(f"  └─ ✅ Redpanda seed processed")
-            else:
-                logger.warning(f"  └─ ⚠️  Unknown seed format in {seed_file.name}")
-
-        except Exception as e:
-            logger.error(f"  └─ ❌ Error processing seed file {seed_file.name}: {e}")
-            logger.exception("Stack trace:")
-
-    logger.info(f"🌱 Processed {processed_count}/{len(seed_files)} seed files")
-    return processed_count
 
 def main():
     """Main entry point for the init module."""
@@ -124,26 +72,9 @@ def main():
             logger.info("✅ Redpanda processing completed")
 
         if target_ids:
-            logger.info(f"🎉 Main configuration processed! Completed {processed_count}/{len(target_ids)} targets")
-
-        # Process seed files (YAML configuration files)
-        seed_count = process_seed_files(environment, config, logger)
-
-        # Process JSON data seed files for Couchbase
-        if 'couchbase' in target_ids or processed_count > 0:
-            # Only run seeder if we have couchbase configured
-            couchbase_controller = CouchbaseController(environment, config) if 'couchbase' in target_ids else None
-            seeder = CouchbaseSeeder(environment, couchbase_controller)
-            seeder_stats = seeder.process_seeds_directory(upsert=True)
-            data_seed_count = seeder_stats['succeeded']
+            logger.info(f"🎉 Configuration processing completed! Completed {processed_count}/{len(target_ids)} targets")
         else:
-            logger.debug("📦 Skipping Couchbase data seeding (no Couchbase target configured)")
-            data_seed_count = 0
-
-        if seed_count == 0 and processed_count == 0 and data_seed_count == 0:
-            logger.info("ℹ️  No configurations to process. Waiting for seed files in conf/seeds...")
-        else:
-            logger.info(f"🎉 All operations completed successfully!")
+            logger.info("ℹ️  No configurations to process.")
 
     except Exception as e:
         logger.error(f"💥 Fatal error in config-manager: {e}")

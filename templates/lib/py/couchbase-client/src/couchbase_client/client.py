@@ -162,6 +162,13 @@ class CouchbaseClient:
             await self._ensure_collection_exists(keyspace)
 
         bucket = cluster.bucket(keyspace.bucket_name)
+        
+        # Wait for bucket to be ready before accessing scope
+        try:
+            await bucket.on_connect()
+        except AttributeError:
+            # Older SDK versions may not have on_connect, continue anyway
+            pass
 
         scope = bucket.scope(keyspace.scope_name)
 

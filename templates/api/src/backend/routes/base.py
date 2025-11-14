@@ -64,8 +64,10 @@ async def health_check(
             "version": get_app_version(),
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "features": {
-                "postgres": conf.USE_POSTGRES,
-                "twilio": conf.USE_TWILIO,
+                "postgres": hasattr(request.app.state, 'postgres_client'),
+                "couchbase": hasattr(request.app.state, 'couchbase_client'),
+                "temporal": hasattr(request.app.state, 'temporal_client'),
+                "twilio": hasattr(request.app.state, 'twilio_client'),
                 "auth": conf.USE_AUTH,
             },
             "configuration": {
@@ -100,7 +102,7 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 
     # Check PostgreSQL if requested
     if not services_filter or "postgres" in services_filter:
-        if conf.USE_POSTGRES:
+        if hasattr(request.app.state, 'postgres_client'):
             postgres_client = request.app.state.postgres_client
             db_health = postgres_client.health_check()
             health_status["postgres"] = db_health
@@ -108,8 +110,8 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
                 health_status["status"] = "degraded"
         else:
             health_status["postgres"] = {
-                "status": "disabled",
-                "message": "PostgreSQL is disabled (USE_POSTGRES=False)"
+                "status": "not_configured",
+                "message": "PostgreSQL client not configured (run add-postgres-client to set up)"
             }
 
     # Check Couchbase if requested
@@ -164,7 +166,7 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 
     # Check Twilio if requested
     if not services_filter or "twilio" in services_filter:
-        if conf.USE_TWILIO:
+        if hasattr(request.app.state, 'twilio_client'):
             twilio_client = request.app.state.twilio_client
             # Use health_check if available
             if hasattr(twilio_client, 'health_check'):
@@ -177,8 +179,8 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
             health_status["twilio"] = twilio_health
         else:
             health_status["twilio"] = {
-                "status": "disabled",
-                "message": "Twilio is disabled (USE_TWILIO=False)"
+                "status": "not_configured",
+                "message": "Twilio client not configured (run add-twilio-client to set up)"
             }
 
     return health_status
@@ -360,10 +362,10 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 # Twilio SMS route examples (uncomment when using Twilio)
 #
 # To enable Twilio SMS functionality:
-# 1. Set USE_TWILIO = True in conf.py
-# 2. Set environment variables:
+# 1. Run: __polytope__run(tool: {{ project-name }}-add-twilio-client, args: {})
+# 2. Set environment variables in polytope.yml:
 #    - TWILIO_ACCOUNT_SID: Your Twilio Account SID
-#    - TWILIO_AUTH_TOKEN: Your Twilio Auth Token  
+#    - TWILIO_AUTH_TOKEN: Your Twilio Auth Token
 #    - TWILIO_FROM_PHONE_NUMBER: Your Twilio phone number (e.g., '+15551234567')
 # 3. Uncomment the routes below
 #
@@ -377,8 +379,8 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 # @router.post("/sms/send")
 # async def send_sms(request: Request, sms_request: SMSRequest):
 #     """Send an SMS message via Twilio."""
-#     if not conf.USE_TWILIO:
-#         raise HTTPException(status_code=503, detail="Twilio SMS is disabled")
+#     if not hasattr(request.app.state, 'twilio_client'):
+#         raise HTTPException(status_code=503, detail="Twilio SMS is not configured")
 #     try:
 #         twilio_client = request.app.state.twilio_client
 #         result = await twilio_client.send_sms(
@@ -404,8 +406,8 @@ async def _check_all_services(request: Request, health_status: dict, services_fi
 # @router.post("/sms/send-delayed")
 # async def send_delayed_sms(request: Request, sms_request: SMSRequest, delay_minutes: int = 5):
 #     """Send a delayed SMS message using Temporal workflow."""
-#     if not conf.USE_TWILIO:
-#         raise HTTPException(status_code=503, detail="Twilio SMS is disabled")
+#     if not hasattr(request.app.state, 'twilio_client'):
+#         raise HTTPException(status_code=503, detail="Twilio SMS is not configured")
 #     if not hasattr(request.app.state, 'temporal_client'):
 #         raise HTTPException(status_code=503, detail="Temporal is not configured")
 #

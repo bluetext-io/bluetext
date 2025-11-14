@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+# Add Twilio SMS client support to the API
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+# Detect OS for sed compatibility
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    SED_INPLACE=(sed -i '')
+else
+    SED_INPLACE=(sed -i)
+fi
+
+echo "📦 Adding twilio-client library as editable dependency..."
+
+$(dirname "$0")/uv add --editable ../lib/py/twilio-client
+
+# Add Twilio environment variables to polytope.yml if they don't exist
+echo ""
+echo "📝 Adding Twilio environment variables to polytope.yml..."
+
+# Check if TWILIO_ACCOUNT_SID already exists in the env section
+if ! grep -q "TWILIO_ACCOUNT_SID" polytope.yml; then
+    # Add Twilio env vars as last entries in the api tool env block (right before mounts:)
+    "${SED_INPLACE[@]}" '/^  api:/,/^  [a-z-]*:/{
+        /^          mounts:/i\
+\
+            - { name: TWILIO_ACCOUNT_SID, value: "" }\
+            - { name: TWILIO_AUTH_TOKEN, value: "" }\
+            - { name: TWILIO_FROM_PHONE_NUMBER, value: "" }
+    }' polytope.yml
+    echo "✅ Added Twilio environment variables to polytope.yml"
+    echo "⚠️  Remember to set your Twilio credentials in the environment variables!"
+else
+    echo "ℹ️  Twilio environment variables already exist in polytope.yml"
+fi
+
+# Create the Twilio configuration file
+echo ""
+echo "📝 Creating Twilio configuration file..."
+
+# Create the twilio.py configuration file
+cat > src/backend/conf/twilio.py << 'EOF'
+from pydantic import BaseModel
+
+from ..utils import env
+from ..utils.env import EnvVarSpec
+
+#### Env Vars ####
+
+TWILIO_ACCOUNT_SID = EnvVarSpec(
+    id="TWILIO_ACCOUNT_SID",
+    is_optional=False
+)
+
+TWILIO_AUTH_TOKEN = EnvVarSpec(
+    id="TWILIO_AUTH_TOKEN",
+    is_optional=False,
+    is_secret=True
+)
+
+TWILIO_FROM_PHONE_NUMBER = EnvVarSpec(
+    id="TWILIO_FROM_PHONE_NUMBER",
+    is_optional=False
+)
+
+VALIDATED_ENV_VARS = [
+    TWILIO_ACCOUNT_SID,
+    TWILIO_AUTH_TOKEN,
+    TWILIO_FROM_PHONE_NUMBER,
+]
+
+#### Getters ####
+
+def get_twilio_conf():
+    """Get Twilio configuration."""
+    from twilio_client import TwilioConf
+    return TwilioConf(
+        account_sid=env.parse(TWILIO_ACCOUNT_SID),
+        auth_token=env.parse(TWILIO_AUTH_TOKEN),
+        from_phone_number=env.parse(TWILIO_FROM_PHONE_NUMBER),
+    )
+EOF
+
+echo "✅ Created src/backend/conf/twilio.py"
+
+# Create the init/twilio.py file with initialization logic
+echo ""
+echo "📝 Creating init/twilio.py with initialization logic..."
+
+cat > src/backend/init/twilio.py << 'EOF'
+"""Twilio client initialization and deinitialization."""
+
+from fastapi import FastAPI
+
+from twilio_client import TwilioClient
+from ..conf.twilio import get_twilio_conf
+from ..utils.log import get_logger
+
+logger = get_logger(__name__)
+
+
+async def init_twilio(app: FastAPI) -> None:
+    """Initialize Twilio SMS client."""
+    logger.info("Initializing Twilio client...")
+    twilio_config = get_twilio_conf()
+
+    app.state.twilio_client = TwilioClient(twilio_config)
+    await app.state.twilio_client.initialize()
+    await app.state.twilio_client.init_connection()
+    logger.info("Twilio client initialized successfully")
+
+
+async def deinit_twilio(app: FastAPI) -> None:
+    """Close Twilio client."""
+    logger.info("Closing Twilio client...")
+    await app.state.twilio_client.close()
+    logger.info("Twilio client closed")
+EOF
+
+echo "✅ Created src/backend/init/twilio.py"
+
+# Inject Twilio initialization calls into init/__init__.py
+echo ""
+echo "📝 Injecting Twilio initialization calls into init/__init__.py..."
+
+# Check if twilio initialization is already present
+if grep -q "init_twilio" src/backend/init/__init__.py; then
+    echo "ℹ️  Twilio initialization already present in init/__init__.py"
+else
+    # Add import at the top of the file (after FastAPI import)
+    "${SED_INPLACE[@]}" '/^from fastapi import FastAPI$/a\
+\
+from .twilio import init_twilio, deinit_twilio
+' src/backend/init/__init__.py
+
+    # Inject init call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def init(app: FastAPI) -> None:/,/^async def deinit/{
+        /""".*"""/{
+            a\
+    await init_twilio(app)
+        }
+    }' src/backend/init/__init__.py
+
+    # Inject deinit call - insert after docstring line (single or multi-line)
+    "${SED_INPLACE[@]}" '/async def deinit(app: FastAPI) -> None:/,${
+        /""".*"""/{
+            a\
+    await deinit_twilio(app)
+        }
+    }' src/backend/init/__init__.py
+
+    echo "✅ Injected Twilio initialization calls into init/__init__.py"
+fi
+
+# Update the main conf/__init__.py file to import twilio configuration
+echo ""
+echo "📝 Updating src/backend/conf/__init__.py to include Twilio configuration..."
+
+# Remove the USE_TWILIO flag line if it exists
+"${SED_INPLACE[@]}" '/^USE_TWILIO = /d' src/backend/conf/__init__.py
+
+# Add import at the top of the file (after the existing imports)
+if ! grep -q "from . import twilio" src/backend/conf/__init__.py; then
+    # Add the import after the line with "from ..utils.env import EnvVarSpec"
+    "${SED_INPLACE[@]}" '/from \.\.utils\.env import EnvVarSpec/a\
+from . import twilio\
+from .twilio import get_twilio_conf
+' src/backend/conf/__init__.py
+    echo "✅ Added twilio import to conf/__init__.py"
+else
+    echo "ℹ️  Twilio import already exists in conf/__init__.py"
+fi
+
+# Add getter function export if not already present
+if ! grep -q "from .twilio import get_twilio_conf" src/backend/conf/__init__.py; then
+    "${SED_INPLACE[@]}" '/from \. import twilio/a\
+from .twilio import get_twilio_conf
+' src/backend/conf/__init__.py
+    echo "✅ Added get_twilio_conf export to conf/__init__.py"
+fi
+
+# Add VALIDATED_ENV_VARS.extend(twilio.VALIDATED_ENV_VARS) after the initial VALIDATED_ENV_VARS definition
+if ! grep -q "VALIDATED_ENV_VARS.extend(twilio.VALIDATED_ENV_VARS)" src/backend/conf/__init__.py; then
+    # Find the closing bracket of VALIDATED_ENV_VARS and add the extend statement after it
+    "${SED_INPLACE[@]}" '/^VALIDATED_ENV_VARS = \[/,/^\]/{
+        /^\]/a\
+\
+VALIDATED_ENV_VARS.extend(twilio.VALIDATED_ENV_VARS)
+    }' src/backend/conf/__init__.py
+    echo "✅ Added VALIDATED_ENV_VARS.extend(twilio.VALIDATED_ENV_VARS) to conf/__init__.py"
+else
+    echo "ℹ️  VALIDATED_ENV_VARS extension already exists in conf/__init__.py"
+fi
+
+# Create get_twilio_client helper in routes/utils.py if not present
+echo ""
+echo "📝 Updating routes/utils.py with Twilio client helper..."
+
+# Check if get_twilio_client is already defined
+if ! grep -q "def get_twilio_client" src/backend/routes/utils.py; then
+    cat >> src/backend/routes/utils.py << 'EOF'
+
+
+#### Twilio ####
+
+def get_twilio_client(request: Request):
+    """
+    FastAPI dependency that provides the Twilio client.
+
+    Usage in routes:
+        from .utils import TwilioSMS
+
+        @router.post("/send-sms")
+        async def send_sms(
+            to: str,
+            message: str,
+            twilio: TwilioSMS
+        ):
+            return await twilio.send_sms(to, message)
+    """
+    if not hasattr(request.app.state, 'twilio_client'):
+        raise HTTPException(status_code=503, detail="Twilio client is not configured. Run add-twilio-client to set up Twilio")
+
+    return request.app.state.twilio_client
+
+
+# Type alias for dependency injection
+TwilioSMS = Annotated['TwilioClient', Depends(get_twilio_client)]
+EOF
+    echo "✅ Added Twilio client helper to routes/utils.py"
+else
+    echo "ℹ️  Twilio client helper already exists in routes/utils.py"
+fi
+
+# Create example SMS routes file
+echo ""
+echo "📝 Creating example SMS routes file..."
+
+cat > src/backend/routes/sms.py << 'EOF'
+"""
+API routes for SMS operations using Twilio.
+"""
+
+from typing import Optional
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from ..routes.utils import TwilioSMS
+
+router = APIRouter(prefix="/sms", tags=["sms"])
+
+
+class SendSMSRequest(BaseModel):
+    """Request body for sending SMS."""
+    to: str = Field(..., description="Recipient phone number in E.164 format (e.g., '+1234567890')")
+    message: str = Field(..., description="SMS message content", max_length=1600)
+
+
+class SendSMSResponse(BaseModel):
+    """Response from sending SMS."""
+    success: bool
+    sid: Optional[str] = None
+    status: Optional[str] = None
+    error: Optional[str] = None
+    to: Optional[str] = None
+    from_: Optional[str] = Field(None, alias="from")
+
+
+@router.post("/send", response_model=SendSMSResponse)
+async def send_sms(
+    request: SendSMSRequest,
+    twilio: TwilioSMS
+):
+    """
+    Send an SMS message via Twilio.
+
+    Requires valid Twilio credentials to be configured.
+    Phone numbers must be in E.164 format (e.g., '+1234567890').
+    """
+    try:
+        result = await twilio.send_sms(
+            to_phone_number=request.to,
+            message=request.message
+        )
+
+        return SendSMSResponse(
+            success=True,
+            sid=result['sid'],
+            status=result['status'],
+            to=result['to'],
+            from_=result['from']
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to send SMS: {str(e)}"
+        )
+
+
+@router.get("/health")
+async def sms_health(twilio: TwilioSMS):
+    """Check if Twilio SMS service is configured and ready."""
+    return {
+        "service": "twilio_sms",
+        "status": "ready",
+        "configured": True
+    }
+EOF
+
+echo "✅ Created src/backend/routes/sms.py"
+
+echo ""
+echo "✅ Twilio SMS client setup complete!"
+echo ""
+echo "⚠️  IMPORTANT: You must set your Twilio credentials in polytope.yml:"
+echo "    TWILIO_ACCOUNT_SID: Your Twilio Account SID"
+echo "    TWILIO_AUTH_TOKEN: Your Twilio Auth Token"
+echo "    TWILIO_FROM_PHONE_NUMBER: Your Twilio phone number (E.164 format)"
+echo ""
+echo "Next steps:"
+echo "  1. Set your Twilio credentials in polytope.yml environment variables"
+echo "  2. Register the SMS routes in your main router:"
+echo "     from .sms import router as sms_router"
+echo "     router.include_router(sms_router)"
+echo "  3. Test the SMS endpoint:"
+echo "     curl -X POST http://localhost:3030/sms/send \\"
+echo "       -H 'Content-Type: application/json' \\"
+echo "       -d '{\"to\": \"+1234567890\", \"message\": \"Hello from API!\"}'"
+echo ""
+echo "Example usage in routes:"
+echo "  from ..routes.utils import TwilioSMS"
+echo ""
+echo "  @router.post('/notify')"
+echo "  async def notify(phone: str, twilio: TwilioSMS):"
+echo "      return await twilio.send_sms(phone, 'Notification message')"

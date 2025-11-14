@@ -44,9 +44,10 @@ Uncomment and adapt these examples in `src/backend/routes/base.py` as needed.
 ## Setting Up Features
 
 ### PostgreSQL Database
-1. Enable in `src/backend/conf.py`:
-```python
-USE_POSTGRES = True
+
+1. Add the PostgreSQL client:
+```mcp
+__polytope__run(tool: {{ project-name }}-add-postgres-client, args: {})
 ```
 
 2. Check logs to verify connection:
@@ -59,7 +60,7 @@ __polytope__get_container_logs(container: {{ project-name }}, limit: 50)
 curl http://localhost:3030/health
 ```
 
-4. Add database routes in `src/backend/routes/base.py`:
+4. Database routes are automatically available:
 ```python
 from ..utils import DBSession
 
@@ -84,24 +85,64 @@ async def protected_route(principal: RequestPrincipal):
 4. Clients must send requests with `Authorization: Bearer <jwt-token>` header
 
 ### Temporal Workflows
-
-Quick Setup - ALWAYS follow this pattern before setting up Temporal.
-
-1. Call `__polytope__add-temporal()` to add the Temporal Server to the project and start it.
-2. Call `__polytope__run(tool: {{ project-name }}-add-temporal-client)` to add our Temporal client to this project. This tool will also give you instructions on how to proceed.
-3. Call `__polytope__run(tool: {{ project-name }}-add-temporal-workflow, name: placeholder)` to scaffold a new workflow with activity, Pydantic models, and automatic registration.
+1. Enable: `USE_TEMPORAL = True` in `conf.py`
+2. Add workflows to `src/backend/workflows/examples.py`
+3. Register workflows and activities in `src/backend/workflows/__init__.py`
+4. Uncomment workflow routes in `src/backend/routes/base.py`
 
 ### Couchbase
 
-Quick Setup - ALWAYS follow this pattern before setting up Couchbase.
+#### Initial Setup
 
-1. Call ` __polytope__add-couchbase()` to add the Couchbase Server to the project and start it.
-2. Call `__polytope__run(tool: {{ project-name }}-add-couchbase-client)` to add our Couchbase client to this project. This tool will also give you instructions on how to proceed.
+Add the Couchbase client library to your project:
+
+```mcp
+__polytope__run(tool: {{ project-name }}-add-couchbase-client, args: {})
+```
+
+Or if visible:
+
+```mcp
+__polytope__{{ project-name }}-add-couchbase-client()
+```
+
+This will:
+- Add the couchbase-client library as an editable dependency
+- Configure Couchbase environment variables in `polytope.yml`
+- Set up model initialization and directory structure
+- Register initialization hooks in your FastAPI lifespan
+
+#### Creating Models
+
+Once the client is set up, create models using:
+
+```mcp
+__polytope__run(tool: {{ project-name }}-add-couchbase-model, args: {name: "model-name"})
+```
+
+Or if visible:
+
+```mcp
+__polytope__{{ project-name }}-add-couchbase-model(name: "model-name")
+```
+
+This generates a model with Pydantic validation and automatic collection initialization. Check logs after creation, then add your fields to the generated file in `src/backend/couchbase/models/`.
+
+**Important**: DO NOT create model files manually - always use the tool.
 
 ### SMS/Twilio
-1. Set Twilio environment variables
-2. Enable: `USE_TWILIO = True` in `conf.py`
-3. Uncomment SMS routes in `routes/base.py`
+
+1. Add the Twilio client:
+```mcp
+__polytope__run(tool: {{ project-name }}-add-twilio-client, args: {})
+```
+
+2. Configure Twilio credentials in polytope.yml environment variables:
+   - TWILIO_ACCOUNT_SID
+   - TWILIO_AUTH_TOKEN
+   - TWILIO_FROM_PHONE_NUMBER
+
+3. Use the TwilioSMS dependency in routes or register the generated sms router
 
 ## Development Workflow
 

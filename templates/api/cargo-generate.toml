@@ -1,4 +1,4 @@
 [template]
 ignore = [
-  "bin/add-couchbase-collection"
+  "bin/add-couchbase-model"
 ]

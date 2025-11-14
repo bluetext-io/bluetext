@@ -1,3 +1,26 @@
+instructions: |
+  Working with Bluetext.
+
+  TOOL USAGE PATTERNS:
+
+  1. **Before making changes**: Always list the steps that have been run to understand the current project state:
+     ```mcp
+     __polytope__list_steps()
+     ```
+     This ensures you have full context of what has been scaffolded and configured before starting to work with the project.
+
+  2. **After adding services or functionality**: Always run __polytope__list_tools() after calling any tool that adds new services or functionality to existing services. This includes:
+     - After add-frontend, add-api, add-postgres, add-couchbase, add-temporal
+     - After adding client libraries (e.g., api-add-couchbase-client, api-add-temporal-client)
+     - After any tool that modifies service capabilities
+
+  3. **After code changes**: It is MANDATORY to check container logs whenever a service is modified through code changes:
+     ```mcp
+     __polytope__get_container_logs(container: <service-name>, limit: 25)
+     ```
+     **Important:** All running services have hot reload enabled. No manual restarts are necessary. Errors will surface when invalid code changes have been made. Alsways mak check for any import errors, syntax errors, or runtime exceptions after making code changes.
+
+
 tools:
   add-frontend:
     info: |
@@ -58,6 +81,54 @@ tools:
           (-> (clojure.string/replace (:service-name params) #"[^A-Za-z0-9-]*$" "")
               (clojure.string/replace  #".*/" "")
               (pt/call-module {}))
+  api-add-postgres-client:
+    info: |
+      Adds PostgreSQL client library with database support to an API service.
+      Run this after add-postgres to enable database operations in your API.
+    params:
+      - id: service-name
+        info: Name of the API service to add the client to
+        type: [default, str, api]
+    run:
+      - tool: polytope/scaffold
+        args:
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: lib/py/postgres-client}
+              path: lib/py/postgres-client
+              on-conflict: skip
+      - id: run-script
+        code: |
+          #pt-clj
+          (let [service-name (-> (:service-name params)
+                                 (clojure.string/replace #"[^A-Za-z0-9-]*$" "")
+                                 (clojure.string/replace #".*/" ""))
+                tool-name (str service-name "-add-postgres-client")]
+            (pt/call-tool tool-name {}))
+
+  api-add-twilio-client:
+    info: |
+      Adds Twilio SMS client library to an API service.
+      Enables SMS sending capabilities via Twilio's API.
+    params:
+      - id: service-name
+        info: Name of the API service to add the client to
+        type: [default, str, api]
+    run:
+      - tool: polytope/scaffold
+        args:
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: lib/py/twilio-client}
+              path: lib/py/twilio-client
+              on-conflict: skip
+      - id: run-script
+        code: |
+          #pt-clj
+          (let [service-name (-> (:service-name params)
+                                 (clojure.string/replace #"[^A-Za-z0-9-]*$" "")
+                                 (clojure.string/replace #".*/" ""))
+                tool-name (str service-name "-add-twilio-client")]
+            (pt/call-tool tool-name {}))
+
   add-postgres:
     info: |
       Creates and starts a Postgres subproject under <project-root>/modules/postgres.

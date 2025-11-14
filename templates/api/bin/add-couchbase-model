@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# Create a new Couchbase model with basic scaffolding
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+models_dir=src/backend/couchbase/models
+
+# Function to echo (can be silenced)
+echoh() {
+    if [ "${SILENT_OUTPUT:-}" != "true" ]; then
+        echo "$@"
+    fi
+}
+
+# Function to convert kebab-case to snake_case
+kebab_to_snake() {
+    echo "$1" | sed 's/-/_/g'
+}
+
+# Function to convert kebab-case to PascalCase
+kebab_to_pascal() {
+    local input="$1"
+    # Convert hyphens and underscores to spaces, then capitalize each word
+    echo "$input" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1' | sed 's/ //g'
+}
+
+# Function to convert to uppercase
+to_upper() {
+    echo "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+# Function to ensure models directory and __init__.py exist
+ensure_models_structure() {
+    # Create models directory if it doesn't exist
+    if [ ! -d "$models_dir" ]; then
+        mkdir -p "$models_dir"
+        echoh "📁 Created models directory: $models_dir"
+    fi
+
+    # Create __init__.py if it doesn't exist
+    local init_file="${models_dir}/__init__.py"
+    if [ ! -f "$init_file" ]; then
+        cat > "$init_file" << 'EOF'
+"""
+Couchbase model bindings.
+
+All model classes should be imported here.
+"""
+# Import all model classes here
+# They will be auto-added by the add-couchbase-model tool
+
+# Export all models
+MODELS = [
+]
+EOF
+        echoh "📄 Created models __init__.py: $init_file"
+    fi
+}
+
+# Function to create model file
+create_model_file() {
+    local model_name="$1"
+    local snake_name=$(kebab_to_snake "$model_name")
+    local pascal_name=$(kebab_to_pascal "$model_name")
+    local upper_snake=$(to_upper "$snake_name")
+    local model_file="${models_dir}/${snake_name}.py"
+
+    if [ -f "$model_file" ]; then
+        echoh "📄 Model file already exists: $model_file"
+        return 1
+    fi
+
+    cat > "$model_file" << EOF
+"""
+Model for working with '${snake_name}' documents in Couchbase.
+"""
+
+from typing import ClassVar
+from uuid import UUID
+
+from couchbase_client import CouchbaseModel
+
+
+class ${pascal_name}Model(CouchbaseModel):
+    """
+    Model for ${snake_name} documents.
+
+    This model inherits from CouchbaseModel which provides:
+    - Auto-derived collection name (defaults to "${snake_name}")
+    - CRUD operations as class methods: get(), list(), upsert(), delete()
+    - Automatic Pydantic validation
+    - Collection initialization
+
+    Usage:
+        # Get document by ID
+        doc = await ${pascal_name}Model.get(client, id=doc_id)
+
+        # List documents with pagination
+        docs = await ${pascal_name}Model.list(client, limit=10, offset=0)
+
+        # Create or update document
+        new_doc = ${pascal_name}Model(id=UUID(), ...)
+        await ${pascal_name}Model.upsert(client, new_doc)
+
+        # Delete document
+        await ${pascal_name}Model.delete(client, id=doc_id)
+    """
+
+    # Optional: Override collection name (defaults to "${snake_name}")
+    # collection_name: ClassVar[str] = "${snake_name}"
+
+    # Optional: Override key type (defaults to UUID)
+    # key_type: ClassVar[type] = UUID
+
+    # Document fields
+    id: UUID  # Primary key - required
+
+    # TODO: Add your model fields here
+    # Example:
+    # name: str
+    # email: str
+    # created_at: datetime
+EOF
+
+    echoh "✅ Created model file: $model_file"
+    return 0
+}
+
+# Function to update models/__init__.py
+update_models_init() {
+    local model_name="$1"
+    local snake_name=$(kebab_to_snake "$model_name")
+    local pascal_name=$(kebab_to_pascal "$model_name")
+    local init_file="${models_dir}/__init__.py"
+
+    # Check if already imported
+    if grep -q "from .${snake_name} import ${pascal_name}Model" "$init_file" 2>/dev/null; then
+        echoh "✓ Model already registered in $init_file"
+        return 0
+    fi
+
+    # Detect OS for sed compatibility
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        SED_INPLACE=(sed -i '')
+    else
+        SED_INPLACE=(sed -i)
+    fi
+
+    # Add import statement after any existing imports or after docstring
+    import_line="from .${snake_name} import ${pascal_name}Model"
+
+    # Use awk to find the right place: after last import or after docstring, before MODELS
+    awk -v import_line="$import_line" '
+    BEGIN { found_imports = 0; inserted = 0 }
+
+    # Track if we have seen imports
+    /^from \.|^import / { found_imports = 1; last_import = NR }
+
+    # If we hit MODELS without inserting yet, insert before it
+    /^MODELS = \[/ && !inserted {
+        if (found_imports) {
+            # Already printed import after last import line
+        } else {
+            # No imports found, insert here with blank line
+            print ""
+            print import_line
+        }
+        print
+        inserted = 1
+        next
+    }
+
+    # Print the line
+    { print }
+
+    # After the last import line, add new import
+    found_imports && NR == last_import && !inserted {
+        print import_line
+        inserted = 1
+    }
+    ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+
+    # Update MODELS list - find first standalone ] and add entry before it
+    if grep -q "MODELS = \[" "$init_file"; then
+        export_entry="    ${pascal_name}Model,"
+
+        # Use awk to add before the first standalone closing bracket after MODELS
+        awk -v entry="$export_entry" '
+        /^MODELS = \[/ { in_models = 1 }
+        in_models && /^\]$/ && !added {
+            print entry
+            added = 1
+        }
+        { print }
+        ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+    fi
+
+    echoh "📝 Registered model in $init_file"
+}
+
+# Main script
+main() {
+    # Parse arguments
+    local model_name=""
+
+    if [[ $# -eq 1 ]]; then
+        model_name="$1"
+    else
+        echo "Usage: $0 <model-name>"
+        echo ""
+        echo "Scaffold bindings for a new Couchbase model"
+        exit 0
+    fi
+
+    echoh "📦 Creating Couchbase model: $model_name"
+    echoh ""
+
+    # Ensure models directory structure exists
+    ensure_models_structure
+
+
+    # Convert model name to snake_case for file paths
+    local snake_name=$(kebab_to_snake "$model_name")
+    local pascal_name=$(kebab_to_pascal "$model_name")
+
+    # Create the model file
+    create_model_file "$model_name"
+
+    # Update __init__.py
+    update_models_init "$model_name"
+
+    echoh ""
+    echoh "🎉 Model created successfully!"
+    echoh ""
+    echoh "📝 Files modified:"
+    echoh "   - Created: ${models_dir}/${snake_name}.py"
+    echoh "   - Updated: ${models_dir}/__init__.py (added import and registered in MODELS list)"
+    echoh ""
+    echoh "🔄 How it works:"
+    echoh "   1. Model is exported from ${models_dir}/__init__.py via MODELS list"
+    echoh "   2. Client reads MODELS in src/backend/init/couchbase.py"
+    echoh "   3. Each model's initialize() method is called to create collections"
+    echoh "   4. Initialization runs in lifespan (src/backend/main.py)"
+    echoh "   5. Hot reload triggers re-initialization = auto-migration!"
+    echoh ""
+    echoh "💡 To create more models, use the MCP tool:"
+    echoh "   __polytope__{{ project-name }}-add-couchbase-model(name: \"model-name\")"
+    echoh ""
+    echoh "Next steps:"
+    echoh "1. Add fields to your model:"
+    echoh "   ${models_dir}/${snake_name}.py"
+    echoh ""
+    echoh "2. Use the model in your routes:"
+    echoh "   from backend.couchbase.models import ${pascal_name}Model"
+    echoh "   from backend.routes.utils import CouchbaseDB"
+    echoh ""
+    echoh "   @router.get('/${snake_name}/{id}')"
+    echoh "   async def get_${snake_name}(id: UUID, db: CouchbaseDB):"
+    echoh "       doc = await ${pascal_name}Model.get(db, id=id)"
+    echoh "       return doc"
+    echoh ""
+    echoh "   @router.get('/${snake_name}')"
+    echoh "   async def list_${snake_name}s(db: CouchbaseDB):"
+    echoh "       docs = await ${pascal_name}Model.list(db, limit=50)"
+    echoh "       return docs"
+    echoh ""
+    echoh "   @router.post('/${snake_name}')"
+    echoh "   async def create_${snake_name}(doc: ${pascal_name}Model, db: CouchbaseDB):"
+    echoh "       await ${pascal_name}Model.upsert(db, doc)"
+    echoh "       return doc"
+}
+
+# Run main function
+main "$@"

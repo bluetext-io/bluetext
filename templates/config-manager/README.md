@@ -1,19 +1,14 @@
 # Config Manager
 
-Manages Couchbase buckets/scopes/collections and Redpanda topics with continuous monitoring and data seeding capabilities.
+Manages Couchbase buckets/scopes/collections and Redpanda topics with continuous monitoring.
 
 ## How It Works
 
-The config-manager runs continuously, monitoring the `conf/seeds` directory for changes. When files are added or modified, it automatically processes them:
-
-1. **YAML files** (`.yaml`, `.yml`) - Define bucket/scope/collection structure or topics
-2. **JSON files** (`.json`) - Seed data into Couchbase collections
+The config-manager runs continuously, monitoring the `conf` directory for changes. When configuration files are added or modified, it automatically processes them to ensure resources are created and configured correctly.
 
 ## Couchbase Configuration
 
-### 1. Define Keyspaces in `couchbase.yaml`
-
-Before seeding data, you must define the bucket, scope, and collection in `conf/couchbase.yaml`:
+Define your Couchbase resources in `conf/couchbase.yaml`:
 
 ```yaml
 buckets:
@@ -29,69 +24,31 @@ buckets:
               max_ttl: 0
 ```
 
-### 2. Seed Data with JSON Files
+The config-manager will automatically create buckets, scopes, and collections based on this configuration.
 
-Once the keyspace is defined, add JSON seed files to `conf/seeds/` using the naming format:
+## Redpanda Configuration
 
-**Format**: `bucket.scope.collection.json`
+Define your Redpanda topics in `conf/redpanda.yaml`:
 
-**Example**: `main.api.users.json`
-
-```json
-[
-  {
-    "id": "user:1",
-    "name": "John Doe",
-    "email": "john@example.com"
-  },
-  {
-    "id": "user:2",
-    "name": "Jane Smith",
-    "email": "jane@example.com"
-  }
-]
+```yaml
+topics:
+  events:
+    partitions: 3
+    replication_factor: 1
 ```
-
-**Important Notes:**
-- Each document MUST have an `id` field (this becomes the document key)
-- The `id` field is removed from the document data when inserted
-- Seeding uses upsert mode by default (updates existing documents)
-- The keyspace (bucket.scope.collection) MUST already be defined in `couchbase.yaml`
-
-### 3. Automatic Processing
-
-The config-manager watches `conf/seeds/` and will automatically:
-1. Process `couchbase.yaml` to create buckets/scopes/collections
-2. Process any YAML seed files in `conf/seeds/` for additional resources
-3. Process any JSON seed files in `conf/seeds/` to insert data
 
 ## Directory Structure
 
 ```
 conf/
 ├── config.yaml          # Environment configuration
-├── couchbase.yaml       # Couchbase resource definitions
-└── seeds/              # Seed files (watched by config-manager)
-    ├── .gitkeep
-    ├── EXAMPLE.main.api.users.json
-    └── [your-seed-files.json]
+├── couchbase.yaml       # Couchbase resource definitions (optional)
+└── redpanda.yaml        # Redpanda topic definitions (optional)
 ```
 
-## Example Workflow
+## Automatic Processing
 
-1. **Define structure** in `conf/couchbase.yaml`:
-   ```yaml
-   buckets:
-     main:
-       scopes:
-         api:
-           collections:
-             users: {}
-             products: {}
-   ```
-
-2. **Create seed files** in `conf/seeds/`:
-   - `main.api.users.json` - User data
-   - `main.api.products.json` - Product data
-
-3. **Watch it work**: The config-manager automatically creates the keyspaces and seeds the data when files are detected.
+The config-manager watches `conf/` and will automatically:
+1. Process `couchbase.yaml` to create buckets/scopes/collections
+2. Process `redpanda.yaml` to create topics
+3. Continuously monitor for changes and apply updates
