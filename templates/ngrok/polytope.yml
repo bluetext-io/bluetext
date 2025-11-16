@@ -1,0 +1,17 @@
+tools:
+  ngrok:
+    info: "Runs ngrok tunnel service for exposing localhost APIs publicly."
+    run:
+      - tool: polytope/container
+        args:
+          image: ngrok/ngrok:latest
+          id: ngrok
+          services:
+            - id: ngrok
+              ports:
+                - {protocol: http, port: 4040, expose-as: 4040}
+          env:
+            - {name: NGROK_AUTHTOKEN, value: ""} # replace with desired auth token
+          cmd: http api:3030 # replace with desired service name and port
+          create: when-missing
+
