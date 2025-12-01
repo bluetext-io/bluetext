@@ -4,7 +4,7 @@ tools:
     run:
       - tool: polytope/container
         args:
-          image: ngrok/ngrok:latest
+          image: ngrok/ngrok:3.33.0
           id: ngrok
           services:
             - id: ngrok
