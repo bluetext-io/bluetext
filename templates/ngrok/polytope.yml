@@ -9,7 +9,7 @@ tools:
           services:
             - id: ngrok
               ports:
-                - {protocol: http, port: 4040, expose-as: 4040}
+                - {protocol: http, port: 4040, expose-as: 4049}
           env:
             - {name: NGROK_AUTHTOKEN, value: ""} # replace with desired auth token
           cmd: http api:3030 # replace with desired service name and port
