@@ -1,17 +1,38 @@
+instructions: |
+  CONFIGURATION REQUIRED BEFORE USE:
+  
+  This ngrok tool requires configuration before it can be used. You MUST:
+  
+  1. **Replace the placeholder values** in this file:
+     - Line 19: Replace the empty string `""` in `NGROK_AUTHTOKEN` with your ngrok authentication token
+       (Get your token from: https://dashboard.ngrok.com/get-started/your-authtoken)
+     - Line 20: Replace `api:3030` in the `cmd` field with your desired service name and port
+       Format: `http <service-name>:<port>` (e.g., `http api:3030` or `http backend:8000`)
+  
+  2. **After replacing the values**, restart the polytope tool to apply the changes:
+     ```bash
+     pt run ngrok
+     ```
+     Or if running from project root:
+     ```bash
+     pt run modules/ngrok/ngrok
+     ```
+  
+  The tool will not work correctly until these values are configured.
+
 tools:
   ngrok:
-    info: "Runs ngrok tunnel service for exposing localhost APIs publicly."
+    info: "Runs ngrok tunnel service for exposing localhost APIs publicly. REQUIRES CONFIGURATION: Replace NGROK_AUTHTOKEN and cmd values before use, then restart the tool."
     run:
       - tool: polytope/container
         args:
-          image: ngrok/ngrok:3.33.0
+          image: ngrok/ngrok:3
           id: ngrok
           services:
             - id: ngrok
               ports:
                 - {protocol: http, port: 4040, expose-as: 4049}
           env:
-            - {name: NGROK_AUTHTOKEN, value: ""} # replace with desired auth token
-          cmd: http api:3030 # replace with desired service name and port
+            - {name: NGROK_AUTHTOKEN, value: pt.secrets ngrok-auth-token} # REPLACE: Set your ngrok authentication token here
+          cmd: http api:3030 # REPLACE: Set your service name and port here (format: http <service-name>:<port>)
           create: when-missing
-
