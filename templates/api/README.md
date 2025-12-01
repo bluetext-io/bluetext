@@ -85,10 +85,34 @@ async def protected_route(principal: RequestPrincipal):
 4. Clients must send requests with `Authorization: Bearer <jwt-token>` header
 
 ### Temporal Workflows
+
+#### Setup
 1. Enable: `USE_TEMPORAL = True` in `conf.py`
 2. Add workflows to `src/backend/workflows/examples.py`
 3. Register workflows and activities in `src/backend/workflows/__init__.py`
 4. Uncomment workflow routes in `src/backend/routes/base.py`
+
+#### Best Practices
+
+**Activity Imports**: Always import heavy dependencies INSIDE activity functions, not at module level:
+
+```python
+@activity.defn
+def my_activity(input: MyInput) -> MyOutput:
+    # ✅ CORRECT: Import inside activity
+    from couchbase_client import get_client
+    from google import genai
+
+    # Activity logic here
+    client = get_client()
+    return MyOutput(...)
+```
+
+**Why inline imports?**
+- Worker specialization (not all workers need all dependencies)
+- Faster startup time
+- Cleaner dependency separation
+- Avoids import side effects
 
 ### Couchbase
 
@@ -162,6 +186,16 @@ __polytope__run(tool: {{ project-name }}-add-twilio-client, args: {})
 - `src/backend/workflows/` - Temporal workflow definitions
 - `polytope.yml` - Container and environment configuration
 
+## Adding Dependencies to the API
+
+If you want to add dependencies to the API, run the following tool if its available: 
+```mcp
+__polytope__{{{ project-name }}-add tool to 
+```
+if not, run the following
+```mcp
+mcp__polytope-mcp__run(tool: "api-add", args: {"packages": "package-name"})
+```
 ## Debugging
 
 **Always start with logs when something doesn't work:**
