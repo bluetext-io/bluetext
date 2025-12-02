@@ -46,3 +46,13 @@ After setting the secret and configuring the services in `ngrok.yml`, restart th
 ```bash
 pt run ngrok
 ```
+
+## Web UI
+
+The ngrok web UI is accessible through `localhost:4049`. This interface provides a real-time view of:
+- Active tunnels and their status
+- Request/response logs
+- Traffic metrics
+- Tunnel configuration details
+
+You can use the web UI to monitor your tunnels and inspect incoming requests without needing to check the command line logs.
