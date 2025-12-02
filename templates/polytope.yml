@@ -208,3 +208,25 @@ tools:
       - id: temporal-ui
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "temporal-ui" {})'
+  add-ngrok:
+    info: |
+      Creates and starts an ngrok service for exposing localhost APIs publicly.
+      Useful for webhook testing and developer previews during development.
+    await: [scaffold-ngrok]
+    run:
+      - id: scaffold-ngrok
+        tool: polytope/scaffold
+        args:
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: ngrok}
+              path: modules/ngrok
+              on-conflict: skip
+              add-to-tools: [{tool: default, call: ngrok}]
+        
+      - id: ngrok-set-secrets
+        after: {step: scaffold-ngrok}
+        tool: ngrok-set-secrets
+      
+      - id: ngrok
+        after: {step: ngrok-set-secrets}
+        tool: ngrok

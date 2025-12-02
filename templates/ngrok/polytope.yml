@@ -1,0 +1,37 @@
+tools:
+  ngrok:
+    info: "Runs ngrok tunnel service for exposing localhost APIs publicly. Requires the ngrok-auth-token polytope secret to be set."
+    run:
+      - tool: polytope/container
+        args:
+          image: ngrok/ngrok:3
+          id: ngrok
+          services:
+            - id: ngrok
+              ports:
+                - {protocol: http, port: 4040, expose-as: 4049}
+          mounts:
+            - { path: /conf/, source: { type: repo, path: conf }}
+          env:
+            - {name: NGROK_AUTHTOKEN, value: pt.secret ngrok-auth-token}
+            - {name: NGROK_CONFIG, value: /conf/ngrok.yml} 
+          cmd: start --all 
+          create: when-missing
+
+  ngrok-set-secrets:
+    info: "Sets the ngrok configuration file"
+    await: [ngrok-set-secrets]
+    run:
+      - id: ngrok-set-secrets
+        after: {step: scaffold-ngrok}
+        tool: polytope/container
+        args:
+          image: alpine:3.20
+          id: ngrok-set-secrets
+          cmd: cat /conf/ngrok.yml
+          mounts:
+            - { path: /conf/, source: { type: repo, path: conf }}
+
+  
+
+          
