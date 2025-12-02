@@ -20,19 +20,28 @@ pt secrets list
 
 Get your authentication token from: https://dashboard.ngrok.com/get-started/your-authtoken
 
-### 2. Configure Port
+### 2. Configure Services to Tunnel
 
-Configure the correct port that needs to be exposed in the `cmd` field in `polytope.yml` in the module directory. The format is:
+Edit the `conf/ngrok.yml` file to define which services need to be tunnelled. Add or modify entries in the `endpoints` section:
 
+```yaml
+endpoints:
+  - name: api
+    description: API endpoint for example service
+    upstream:
+      url: 3000
 ```
-http <service-name>:<port>
-```
 
-For example: `http api:3030` or `http backend:8000`
+Each endpoint entry specifies:
+- `name`: A unique identifier for the tunnel
+- `description`: Optional description of the service
+- `upstream.url`: The port number or service name to tunnel to
+
+You can add multiple endpoints to tunnel multiple services simultaneously.
 
 ### 3. Restart the Module
 
-After setting the secret and configuring the port values, restart the module to apply the changes:
+After setting the secret and configuring the services in `ngrok.yml`, restart the module to apply the changes:
 
 ```bash
 pt run ngrok
