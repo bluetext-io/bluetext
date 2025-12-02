@@ -247,9 +247,6 @@ fi
 echo ""
 echo "📝 Updating src/backend/conf/__init__.py to include PostgreSQL configuration..."
 
-# Remove the USE_POSTGRES flag line if it exists
-"${SED_INPLACE[@]}" '/^USE_POSTGRES = /d' src/backend/conf/__init__.py
-
 # Add import at the top of the file (after the existing imports)
 if ! grep -q "from . import postgres" src/backend/conf/__init__.py; then
     # Add the import after the line with "from ..utils.env import EnvVarSpec"

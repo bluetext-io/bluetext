@@ -60,9 +60,9 @@ __polytope__get_container_logs(container: {{ project-name }}, limit: 50)
 curl http://localhost:3030/health
 ```
 
-4. Database routes are automatically available:
+4. Use the DBSession dependency in your routes:
 ```python
-from ..utils import DBSession
+from ..routes.utils import DBSession
 
 @router.post("/test-db")
 async def test_database(session: DBSession):
@@ -87,14 +87,25 @@ async def protected_route(principal: RequestPrincipal):
 ### Temporal Workflows
 
 #### Setup
-1. Enable: `USE_TEMPORAL = True` in `conf.py`
-2. Add workflows to `src/backend/workflows/examples.py`
-3. Register workflows and activities in `src/backend/workflows/__init__.py`
-4. Uncomment workflow routes in `src/backend/routes/base.py`
+
+1. Add the Temporal Server to the project:
+```mcp
+__polytope__add-temporal()
+```
+
+2. Add the Temporal client to the API:
+```mcp
+__polytope__run(tool: {{ project-name }}-add-temporal-client, args: {})
+```
+
+3. Scaffold a new workflow in the API:
+```mcp
+__polytope__run(tool: {{ project-name }}-add-temporal-workflow, args: {name: "workflow-name"})
+```
 
 #### Best Practices
 
-**Activity Imports**: Always import heavy dependencies INSIDE activity functions, not at module level:
+**Activity Imports**: Always import dependencies INSIDE activity functions, not at module level:
 
 ```python
 @activity.defn
@@ -108,26 +119,14 @@ def my_activity(input: MyInput) -> MyOutput:
     return MyOutput(...)
 ```
 
-**Why inline imports?**
-- Worker specialization (not all workers need all dependencies)
-- Faster startup time
-- Cleaner dependency separation
-- Avoids import side effects
-
 ### Couchbase
 
-#### Initial Setup
+#### Setup
 
 Add the Couchbase client library to your project:
 
 ```mcp
 __polytope__run(tool: {{ project-name }}-add-couchbase-client, args: {})
-```
-
-Or if visible:
-
-```mcp
-__polytope__{{ project-name }}-add-couchbase-client()
 ```
 
 This will:
@@ -142,12 +141,6 @@ Once the client is set up, create models using:
 
 ```mcp
 __polytope__run(tool: {{ project-name }}-add-couchbase-model, args: {name: "model-name"})
-```
-
-Or if visible:
-
-```mcp
-__polytope__{{ project-name }}-add-couchbase-model(name: "model-name")
 ```
 
 This generates a model with Pydantic validation and automatic collection initialization. Check logs after creation, then add your fields to the generated file in `src/backend/couchbase/models/`.
@@ -167,6 +160,10 @@ __polytope__run(tool: {{ project-name }}-add-twilio-client, args: {})
    - TWILIO_FROM_PHONE_NUMBER
 
 3. Use the TwilioSMS dependency in routes or register the generated sms router
+
+---
+
+**Note on MCP Tools**: All tools shown using `__polytope__run(tool: ...)` can be called directly if available. For example, instead of `__polytope__run(tool: {{ project-name }}-add-postgres-client, args: {})`, you can use `__polytope__{{ project-name }}-add-postgres-client()`.
 
 ## Development Workflow
 
@@ -188,13 +185,9 @@ __polytope__run(tool: {{ project-name }}-add-twilio-client, args: {})
 
 ## Adding Dependencies to the API
 
-If you want to add dependencies to the API, run the following tool if its available: 
+If you want to add dependencies to the API, run: 
 ```mcp
-__polytope__{{{ project-name }}-add tool to 
-```
-if not, run the following
-```mcp
-mcp__polytope-mcp__run(tool: "api-add", args: {"packages": "package-name"})
+mcp__polytope-mcp__run(tool: "{{{ project-name }}api-add", args: {"packages": "package-name"})
 ```
 ## Debugging
 
