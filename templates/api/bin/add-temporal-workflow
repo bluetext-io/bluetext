@@ -56,6 +56,10 @@ All workflows are automatically registered here.
 # Registry of all workflows
 WORKFLOWS = [
 ]
+
+# Registry of all activities
+ACTIVITIES = [
+]
 EOF
         echoh "📄 Created workflows __init__.py: $init_file"
     fi
@@ -112,13 +116,32 @@ class ${pascal_name}Response(BaseModel):
     placeholder: str
 
 #### Activities ####
+# NOTE: Register all activities in the ACTIVITIES array in src/backend/workflows/__init__.py
 
 @activity.defn
 def ${snake_name}_activity(input: ${pascal_name}Input) -> ${pascal_name}Response:
     """
     Base activity for the ${pascal_name} workflow.
+
+    IMPORTANT: Import heavy dependencies (couchbase, google-genai, etc.)
+    INSIDE this activity function, not at module level.
+
+    Example:
+        # ✅ Correct - Import inside activity
+        from couchbase_client import get_client
+        from google import genai
+
+        # ❌ Wrong - Don't import at module level (line 85)
+
+    Why inline imports?
+    - Worker specialization (not all workers need all dependencies)
+    - Faster startup time
+    - Cleaner dependency separation
+    - Avoids import side effects
     """
     activity.logger.info(f"Running activity with parameter {input}")
+
+    # Your inline imports here (couchbase, google-genai, etc.)
 
     return ${pascal_name}Response(
         placeholder=input.placeholder
@@ -268,6 +291,12 @@ main() {
     echoh "   ${workflows_dir}/${snake_name}.py"
     echoh ""
     echoh "2. Implement your activity logic (avoid non-deterministic operations in workflows)"
+    echoh "   IMPORTANT: Import heavy dependencies (couchbase, google-genai, etc.) INSIDE activities:"
+    echoh ""
+    echoh "   @activity.defn"
+    echoh "   def my_activity(input):"
+    echoh "       from couchbase_client import get_client  # ✅ Import here, not at top"
+    echoh "       # Activity logic here"
     echoh ""
     echoh "3. Use the workflow in your routes:"
     echoh "   from temporalio.client import Client"

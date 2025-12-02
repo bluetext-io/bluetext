@@ -159,9 +159,6 @@ fi
 echo ""
 echo "📝 Updating src/backend/conf/__init__.py to include Twilio configuration..."
 
-# Remove the USE_TWILIO flag line if it exists
-"${SED_INPLACE[@]}" '/^USE_TWILIO = /d' src/backend/conf/__init__.py
-
 # Add import at the top of the file (after the existing imports)
 if ! grep -q "from . import twilio" src/backend/conf/__init__.py; then
     # Add the import after the line with "from ..utils.env import EnvVarSpec"
