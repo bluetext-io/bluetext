@@ -1,0 +1,10 @@
+version: "3"
+
+agent:
+  web_addr: 0.0.0.0:4040
+
+endpoints:
+  - name: api
+    description: API endpoint for example service
+    upstream:
+      url: 3000

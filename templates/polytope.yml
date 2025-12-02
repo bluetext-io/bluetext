@@ -222,6 +222,11 @@ tools:
               path: modules/ngrok
               on-conflict: skip
               add-to-tools: [{tool: default, call: ngrok}]
-      - id: ngrok
+        
+      - id: ngrok-set-secrets
         after: {step: scaffold-ngrok}
-        code: '#pt-clj (pt/call-module "ngrok" {})'
+        tool: ngrok-set-secrets
+      
+      - id: ngrok
+        after: {step: ngrok-set-secrets}
+        tool: ngrok
