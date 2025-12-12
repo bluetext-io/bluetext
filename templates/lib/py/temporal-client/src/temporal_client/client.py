@@ -126,6 +126,7 @@ class TemporalClient:
             return
 
         # Create worker with registered workflows and activities
+        # Workers are registered on this queue, not "default"
         self._worker = Worker(
             self._client,
             task_queue=self._config.task_queue,

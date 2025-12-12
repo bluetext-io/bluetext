@@ -132,7 +132,7 @@ from fastapi import FastAPI
 
 from temporal_client import TemporalClient
 from ..conf.temporal import get_temporal_conf
-from ..workflows import WORKFLOWS
+from ..workflows import WORKFLOWS, ACTIVITIES
 from ..utils.log import get_logger
 
 logger = get_logger(__name__)
@@ -148,10 +148,11 @@ async def init_temporal(app: FastAPI) -> None:
 
     app.state.temporal_client = TemporalClient(
         config=temporal_config,
-        workflows=WORKFLOWS
+        workflows=WORKFLOWS,
+        activities=ACTIVITIES
     )
     await app.state.temporal_client.initialize()
-    logger.info(f"Temporal client initialized with {len(WORKFLOWS)} workflow(s)")
+    logger.info(f"Temporal client initialized with {len(WORKFLOWS)} workflow(s) and {len(ACTIVITIES)} activity/activities")
 
 
 async def deinit_temporal(app: FastAPI) -> None:
@@ -244,14 +245,24 @@ if [ ! -f src/backend/workflows/__init__.py ]; then
 """
 Temporal workflows registry.
 
-All workflows are automatically registered here.
+All workflows and activities MUST be registered here for the Temporal worker to discover them.
+
+IMPORTANT: When you rename an activity function in a workflow file, you MUST:
+1. Update the import statement below to use the new activity name
+2. Update the ACTIVITIES list below to reference the new activity name
+
+Failure to register activities will result in the worker starting with 0 activities.
 """
 
-# Import workflows here
+# Import workflows and activities here
 # They will be auto-added by the add-temporal-workflow tool
 
 # Registry of all workflows
 WORKFLOWS = [
+]
+
+# Registry of all activities (MUST be kept in sync with actual activity function names)
+ACTIVITIES = [
 ]
 EOF
     echo "✅ Created src/backend/workflows/__init__.py"

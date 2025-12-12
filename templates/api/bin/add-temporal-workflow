@@ -47,14 +47,24 @@ ensure_workflows_structure() {
 """
 Temporal workflows registry.
 
-All workflows are automatically registered here.
+All workflows and activities MUST be registered here for the Temporal worker to discover them.
+
+IMPORTANT: When you rename an activity function in a workflow file, you MUST:
+1. Update the import statement below to use the new activity name
+2. Update the ACTIVITIES list below to reference the new activity name
+
+Failure to register activities will result in the worker starting with 0 activities.
 """
 
-# Import workflows here
+# Import workflows and activities here
 # They will be auto-added by the add-temporal-workflow tool
 
 # Registry of all workflows
 WORKFLOWS = [
+]
+
+# Registry of all activities (MUST be kept in sync with actual activity function names)
+ACTIVITIES = [
 ]
 EOF
         echoh "📄 Created workflows __init__.py: $init_file"
@@ -112,11 +122,17 @@ class ${pascal_name}Response(BaseModel):
     placeholder: str
 
 #### Activities ####
+# IMPORTANT: If you rename any activity functions below, you MUST also update
+# workflows/__init__.py to import and register the renamed activity.
+# Activity registration happens in workflows/__init__.py in the ACTIVITIES list.
 
 @activity.defn
 def ${snake_name}_activity(input: ${pascal_name}Input) -> ${pascal_name}Response:
     """
     Base activity for the ${pascal_name} workflow.
+
+    IMPORTANT: If you rename this activity function, update workflows/__init__.py
+    to import the new name and add it to the ACTIVITIES list.
     """
     activity.logger.info(f"Running activity with parameter {input}")
 
@@ -134,6 +150,9 @@ class ${pascal_name}Workflow:
     Workflows must be deterministic - avoid random numbers, current time, or external
     API calls directly in workflow code. Use activities for non-deterministic
     operations.
+
+    IMPORTANT: If you rename the workflow class, update workflows/__init__.py
+    to import the new class name and add it to the WORKFLOWS list.
     """
 
     @workflow.run
@@ -149,6 +168,7 @@ class ${pascal_name}Workflow:
         """
         workflow.logger.info(f"Running workflow with parameter {name}")
 
+        # Execute activity - NOTE: If you rename ${snake_name}_activity, update workflows/__init__.py
         result = await workflow.execute_activity(
             ${snake_name}_activity,
             args=[${pascal_name}Input(placeholder=placeholder)],
@@ -176,7 +196,7 @@ update_workflows_init() {
     fi
 
     # Add import statement after any existing imports or after docstring
-    import_line="from .${snake_name} import ${pascal_name}Workflow"
+    import_line="from .${snake_name} import ${pascal_name}Workflow, ${snake_name}_activity"
 
     # Use awk to find the right place: after last import or before WORKFLOWS if no imports
     awk -v import_line="$import_line" '
@@ -224,7 +244,22 @@ update_workflows_init() {
         ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
     fi
 
-    echoh "📝 Registered workflow in $init_file"
+    # Update ACTIVITIES list - find first standalone ] after ACTIVITIES and add entry before it
+    if grep -q "ACTIVITIES = \[" "$init_file"; then
+        activity_entry="    ${snake_name}_activity,"
+
+        # Use awk to add before the first standalone closing bracket after ACTIVITIES
+        awk -v entry="$activity_entry" '
+        /^ACTIVITIES = \[/ { in_activities = 1 }
+        in_activities && /^\]$/ && !added {
+            print entry
+            added = 1
+        }
+        { print }
+        ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+    fi
+
+    echoh "📝 Registered workflow and activity in $init_file"
 }
 
 # Main script
@@ -268,6 +303,12 @@ main() {
     echoh "   ${workflows_dir}/${snake_name}.py"
     echoh ""
     echoh "2. Implement your activity logic (avoid non-deterministic operations in workflows)"
+    echoh ""
+    echoh "⚠️  CRITICAL: If you rename any activity functions, you MUST update:"
+    echoh "   ${workflows_dir}/__init__.py"
+    echoh "   - Update the import statement with the new activity name"
+    echoh "   - Update the ACTIVITIES list with the new activity name"
+    echoh "   Failure to do this will cause the worker to start with 0 activities!"
     echoh ""
     echoh "3. Use the workflow in your routes:"
     echoh "   from temporalio.client import Client"
