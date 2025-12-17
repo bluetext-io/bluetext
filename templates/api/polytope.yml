@@ -49,7 +49,7 @@ tools:
           mounts:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
             - { path: /lib/py, source: { type: repo, path: /lib/py, repo: "#pt-clj pt/module-project-ref" } }
-  {{ project-name }}-add:
+  {{ project-name }}-add-dependencies:
     info: Adds one or more packages to the pyproject.toml file.
     params:
       - id: packages
@@ -58,7 +58,7 @@ tools:
     run:
       - tool: {{ project-name }}
         args:
-          id: {{ project-name }}-add
+          id: {{ project-name }}-add-dependencies
           restart-policy: never
           cmd: '#pt-js "./bin/add-dependencies " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
