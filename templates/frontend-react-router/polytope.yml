@@ -43,7 +43,7 @@ tools:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-home-cache }}
             - { path: /root/.bun/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-bun-cache }}
             - { path: /app/node_modules/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-node-modules }}
-  {{ project-name }}-add:
+  {{ project-name }}-add-dependencies:
     info: Adds one or more packages to the package.json file.
     params:
       - id: packages
@@ -52,7 +52,7 @@ tools:
     run:
       - tool: {{ project-name }}
         args:
-          id: {{ project-name }}-add
+          id: {{ project-name }}-add-dependencies
           restart-policy: on-failure
           cmd: '#pt-js "bun add " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
