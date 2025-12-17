@@ -88,7 +88,7 @@ tools:
         tool: {{ project-name }}
 
   {{ project-name }}-add-temporal-client:
-    info: Adds Temporal client library with workflow orchestration support and registers add-temporal-workflow tool to polytope.yml.
+    info: Adds Temporal client library with workflow orchestration support and registers add-temporal-workflow and add-temporal-activity tools to polytope.yml.
     params: []
     run:
       - tool: polytope/scaffold
@@ -100,6 +100,9 @@ tools:
               on-conflict: skip
             - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-temporal-workflow}
               path: /modules/api/bin/add-temporal-workflow
+              on-conflict: skip
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/api/bin/add-temporal-activity}
+              path: /modules/api/bin/add-temporal-activity
               on-conflict: skip
 
       - tool: {{ project-name }}

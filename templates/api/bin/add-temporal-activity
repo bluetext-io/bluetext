@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+# Create a new Temporal activity
+
+set -e
+
+# Change to the api directory
+cd "$(dirname "$0")/.."
+
+activities_dir=src/backend/activities
+workflows_dir=src/backend/workflows
+
+# Function to echo (can be silenced)
+echoh() {
+    if [ "${SILENT_OUTPUT:-}" != "true" ]; then
+        echo "$@"
+    fi
+}
+
+# Function to convert kebab-case to snake_case
+kebab_to_snake() {
+    echo "$1" | sed 's/-/_/g'
+}
+
+# Function to convert kebab-case to PascalCase
+kebab_to_pascal() {
+    local input="$1"
+    # Convert hyphens and underscores to spaces, then capitalize each word
+    echo "$input" | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1' | sed 's/ //g'
+}
+
+# Function to ensure activities directory and __init__.py exist
+ensure_activities_structure() {
+    # Create activities directory if it doesn't exist
+    if [ ! -d "$activities_dir" ]; then
+        mkdir -p "$activities_dir"
+        echoh "📁 Created activities directory: $activities_dir"
+    fi
+
+    # Create __init__.py if it doesn't exist
+    local init_file="${activities_dir}/__init__.py"
+    if [ ! -f "$init_file" ]; then
+        cat > "$init_file" << 'EOF'
+"""
+Temporal activities.
+
+Activities contain the actual business logic and can perform non-deterministic
+operations like API calls, database queries, etc.
+
+Activities are automatically imported and registered in workflows/__init__.py
+"""
+EOF
+        echoh "📄 Created activities __init__.py: $init_file"
+    fi
+}
+
+# Function to create activity file
+create_activity_file() {
+    local activity_name="$1"
+    local snake_name=$(kebab_to_snake "$activity_name")
+    local pascal_name=$(kebab_to_pascal "$activity_name")
+    local activity_file="${activities_dir}/${snake_name}.py"
+
+    if [ -f "$activity_file" ]; then
+        echoh "📄 Activity file already exists: $activity_file"
+        return 1
+    fi
+
+    cat > "$activity_file" << EOF
+"""
+${pascal_name} activity using Pydantic models for type-safe data transfer.
+
+Activities contain the actual business logic and can perform non-deterministic
+operations like:
+- API calls to external services
+- Database queries
+- File I/O operations
+- Random number generation
+- Current time/date operations
+
+Activities should be pure functions that take input and return output.
+They can be retried, so they should be idempotent when possible.
+"""
+
+from pydantic import BaseModel
+from temporalio import activity
+
+#### Models ####
+
+class ${pascal_name}Input(BaseModel):
+    """
+    Pydantic model for activity input.
+
+    NOTE: Binary data should be base64-encoded as strings. Complex objects may
+    need custom converters. The pydantic_data_converter handles Pydantic model
+    serialization automatically.
+    """
+    placeholder: str
+
+
+class ${pascal_name}Response(BaseModel):
+    """Pydantic model for activity output."""
+    result: str
+
+#### Activity ####
+
+@activity.defn
+def ${snake_name}(input: ${pascal_name}Input) -> ${pascal_name}Response:
+    """
+    ${pascal_name} activity.
+
+    This activity can perform non-deterministic operations safely.
+    It will be automatically registered in workflows/__init__.py.
+
+    Args:
+        input: Input parameters for the activity
+
+    Returns:
+        Response from the activity
+    """
+    activity.logger.info(f"Running ${snake_name} activity with input: {input}")
+
+    # TODO: Implement your activity logic here
+    # This can include:
+    # - API calls
+    # - Database operations
+    # - File operations
+    # - Any non-deterministic logic
+
+    return ${pascal_name}Response(
+        result=f"Processed: {input.placeholder}"
+    )
+EOF
+
+    echoh "✅ Created activity file: $activity_file"
+    return 0
+}
+
+# Function to update workflows/__init__.py with the activity
+update_workflows_init() {
+    local activity_name="$1"
+    local snake_name=$(kebab_to_snake "$activity_name")
+    local init_file="${workflows_dir}/__init__.py"
+
+    # Ensure workflows/__init__.py exists
+    if [ ! -f "$init_file" ]; then
+        echoh "⚠️  Warning: $init_file does not exist. Run add-temporal-workflow first."
+        return 1
+    fi
+
+    # Check if already imported
+    if grep -q "from ..activities.${snake_name} import ${snake_name}" "$init_file" 2>/dev/null; then
+        echoh "✓ Activity already registered in $init_file"
+        return 0
+    fi
+
+    # Add import statement after any existing imports or after docstring
+    import_line="from ..activities.${snake_name} import ${snake_name}"
+
+    # Use awk to find the right place: after last import or before WORKFLOWS if no imports
+    awk -v import_line="$import_line" '
+    BEGIN { inserted = 0; in_imports = 0 }
+
+    # Track if we are seeing imports
+    /^from \.|^import / {
+        in_imports = 1
+        print
+        next
+    }
+
+    # If we were in imports and now hit a non-import, insert here
+    in_imports && !/^from \.|^import / && !inserted {
+        print import_line
+        print ""
+        inserted = 1
+        in_imports = 0
+    }
+
+    # If we hit WORKFLOWS or ACTIVITIES without inserting yet, insert before it
+    /^WORKFLOWS = \[|^ACTIVITIES = \[/ && !inserted {
+        print ""
+        print import_line
+        print ""
+        inserted = 1
+    }
+
+    # Print all other lines
+    { print }
+    ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+
+    # Update ACTIVITIES list - find first standalone ] after ACTIVITIES and add entry before it
+    if grep -q "ACTIVITIES = \[" "$init_file"; then
+        activity_entry="    ${snake_name},"
+
+        # Use awk to add before the first standalone closing bracket after ACTIVITIES
+        awk -v entry="$activity_entry" '
+        /^ACTIVITIES = \[/ { in_activities = 1 }
+        in_activities && /^\]$/ && !added {
+            print entry
+            added = 1
+        }
+        { print }
+        ' "$init_file" > "${init_file}.tmp" && mv "${init_file}.tmp" "$init_file"
+    fi
+
+    echoh "📝 Registered activity in $init_file"
+}
+
+# Main script
+main() {
+    # Parse arguments
+    local activity_name=""
+
+    if [[ $# -eq 1 ]]; then
+        activity_name="$1"
+    else
+        echo "Usage: $0 <activity-name>"
+        echo ""
+        echo "Scaffold a new Temporal activity"
+        echo ""
+        echo "Activities contain the actual business logic and can perform"
+        echo "non-deterministic operations (API calls, database queries, etc.)"
+        exit 0
+    fi
+
+    echoh "📦 Creating Temporal activity: $activity_name"
+    echoh ""
+
+    # Ensure activities directory structure exists
+    ensure_activities_structure
+
+    # Convert activity name to snake_case for file paths
+    local snake_name=$(kebab_to_snake "$activity_name")
+    local pascal_name=$(kebab_to_pascal "$activity_name")
+
+    # Create the activity file
+    create_activity_file "$activity_name"
+
+    # Update workflows/__init__.py
+    update_workflows_init "$activity_name"
+
+    echoh ""
+    echoh "🎉 Activity created successfully!"
+    echoh ""
+    echoh "Next steps:"
+    echoh "1. READ the generated activity file first to understand the structure:"
+    echoh "   ${activities_dir}/${snake_name}.py"
+    echoh ""
+    echoh "2. Implement your activity logic in:"
+    echoh "   ${activities_dir}/${snake_name}.py"
+    echoh ""
+    echoh "3. Use the activity in your workflows by importing it:"
+    echoh "   from ..activities.${snake_name} import ${snake_name}, ${pascal_name}Input"
+    echoh ""
+    echoh "   # Execute the activity in your workflow"
+    echoh "   result = await workflow.execute_activity("
+    echoh "       ${snake_name},"
+    echoh "       args=[${pascal_name}Input(placeholder=\"example\")],"
+    echoh "       start_to_close_timeout=timedelta(seconds=10),"
+    echoh "   )"
+}
+
+# Run main function
+main "$@"

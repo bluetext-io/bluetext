@@ -47,7 +47,7 @@ if ! grep -q "{{ project-name }}-add-temporal-workflow:" polytope.yml; then
     cat >> polytope.yml << 'EOF'
 
   {{ project-name }}-add-temporal-workflow:
-    info: Scaffold a new Temporal workflow with activity, Pydantic models, and automatic registration.
+    info: Creates a new Temporal workflow (activities created separately with add-temporal-activity).
     params:
       - id: name
         info: The name of the workflow to create (e.g., 'greeting', 'data-processing')
@@ -62,6 +62,31 @@ if ! grep -q "{{ project-name }}-add-temporal-workflow:" polytope.yml; then
 EOF
 
     echo "✅ Added add-temporal-workflow tool to polytope.yml"
+fi
+
+# Add the add-temporal-activity tool to polytope.yml if it doesn't already exist
+if ! grep -q "{{ project-name }}-add-temporal-activity:" polytope.yml; then
+    echo ""
+    echo "📝 Adding add-temporal-activity tool to polytope.yml..."
+
+    cat >> polytope.yml << 'EOF'
+
+  {{ project-name }}-add-temporal-activity:
+    info: Creates a new Temporal activity in the activities/ directory. Activities contain the actual business logic for workflows.
+    params:
+      - id: name
+        info: The name of the activity to create (e.g., 'send-email', 'process-payment')
+        type: str
+    run:
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add-temporal-activity
+          restart-policy: never
+          cmd: ./bin/add-temporal-activity {pt.param name}
+          create: always
+EOF
+
+    echo "✅ Added add-temporal-activity tool to polytope.yml"
 fi
 
 # Create the Temporal configuration file
@@ -243,25 +268,28 @@ if [ ! -f src/backend/workflows/__init__.py ]; then
     echo "📝 Creating workflows registry..."
     cat > src/backend/workflows/__init__.py << 'EOF'
 """
-Temporal workflows registry.
+Temporal workflows and activities registry.
 
 All workflows and activities MUST be registered here for the Temporal worker to discover them.
 
-IMPORTANT: When you rename an activity function in a workflow file, you MUST:
-1. Update the import statement below to use the new activity name
-2. Update the ACTIVITIES list below to reference the new activity name
+Workflows are defined in this directory (workflows/).
+Activities are defined separately in the activities/ directory.
 
-Failure to register activities will result in the worker starting with 0 activities.
+IMPORTANT:
+- Workflows are auto-registered by add-temporal-workflow
+- Activities are auto-registered by add-temporal-activity
+- Both import statements and registry lists are maintained automatically
 """
 
-# Import workflows and activities here
-# They will be auto-added by the add-temporal-workflow tool
+# Import workflows here (auto-added by add-temporal-workflow)
+
+# Import activities here (auto-added by add-temporal-activity)
 
 # Registry of all workflows
 WORKFLOWS = [
 ]
 
-# Registry of all activities (MUST be kept in sync with actual activity function names)
+# Registry of all activities
 ACTIVITIES = [
 ]
 EOF
@@ -271,12 +299,17 @@ fi
 echo ""
 echo "✅ Temporal client setup complete!"
 echo ""
-echo "⚠️  No workflows have been created yet. To get started, call the tool to add workflows."
+echo "⚠️  No workflows or activities have been created yet. To get started:"
 echo ""
 echo "Next steps:"
-echo "  1. Call `__polytope__run(tool: {{ project-name }}-add-temporal-workflow, name: placeholder)` to add a temporal workflow."
+echo "  1. Create a workflow:"
+echo "     `__polytope__run(tool: {{ project-name }}-add-temporal-workflow, name: my-workflow)`"
 echo ""
-echo "  2. The workflow will be automatically registered and initialized"
+echo "  2. Create activities separately (best practice):"
+echo "     `__polytope__run(tool: {{ project-name }}-add-temporal-activity, name: send-email)`"
+echo "     `__polytope__run(tool: {{ project-name }}-add-temporal-activity, name: process-data)`"
 echo ""
-echo "  3. Access the Temporal client in your routes:"
+echo "  3. Import and use activities in your workflow"
+echo ""
+echo "  4. Access the Temporal client in your routes:"
 echo "     temporal_client = request.app.state.temporal_client"
