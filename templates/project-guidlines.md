@@ -1,15 +1,31 @@
 # ABOUT THIS PROJECT
 
-This project runs containerized and is orchestrated using Polytope.
+This is a Bluetext project - a containerized full-stack application orchestrated using Polytope.
 
-## Before Making Changes
+## PROJECT STRUCTURE
 
-1. Call `list-ai-dev-context-scopes` to see available context scopes
-2. Call `get-ai-dev-context(scope: <scope-name>)` to retrieve guidelines for your specific task (defaults to "general")
-3. Review the retrieved guidelines to ensure compliance during development
+- **Frontend**: React + shadcn/ui + React Router v7 (modules/frontend or modules/<service-name>)
+- **API**: FastAPI + SQLModel + uv for Python (modules/api or modules/<service-name>)
+- **Databases**: PostgreSQL, Couchbase (modules/postgres, modules/couchbase)
+- **Shared Libraries**: lib/py/* for Python shared code
+- **All services run in containers with hot reload enabled**
 
-## Available Scopes
+## ⚠️ CRITICAL: MANDATORY BEFORE ANY CODE CHANGES ⚠️
 
-- **general** - Project overview, MCP tools, environment variables
-- **api** - API development: hot reload, routes, authentication, Temporal, Couchbase
-- **frontend** - Frontend development: import paths, theming, shadcn components
+**YOU MUST CALL THESE TOOLS BEFORE MAKING ANY CODE CHANGES:**
+
+1. **FIRST**: Call `list-ai-dev-context-scopes` to see available context scopes
+2. **SECOND**: Call `get-ai-dev-context(scope: <scope-name>)` to retrieve critical guidelines:
+   - **"general"** - Project overview, MCP tools, environment variables
+   - **"api"** - API routes, authentication, Temporal workflows, Couchbase models, import paths
+   - **"frontend"** - Import paths, theming, shadcn components, routing patterns
+3. **THIRD**: Follow the retrieved guidelines to prevent breaking changes
+
+**These guidelines contain critical information about:**
+- Import paths and module structure
+- Authentication patterns and middleware
+- Database schemas and models
+- Component patterns and styling conventions
+- Environment variable usage
+
+**Skipping this step WILL cause errors and breaking changes.**
