@@ -208,3 +208,27 @@ tools:
       - id: temporal-ui
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "temporal-ui" {})'
+
+  list-ai-dev-context-scopes:
+    info: Lists all available AI development context scopes.
+    run:
+      - tool: polytope/container
+        args:
+          image: alpine:latest
+          cmd: sh -c "ls -1 /scopes | sed 's/\\.md$//'"
+          mounts:
+            - { path: /scopes, source: { type: repo, path: scopes } }
+
+  get-ai-dev-context:
+    info: Outputs AI development guidelines for the specified scope. Call list-ai-dev-context-scopes first to see available scopes.
+    params:
+      - id: scope
+        info: "The scope to fetch (default: general)"
+        type: [default, str, general]
+    run:
+      - tool: polytope/container
+        args:
+          image: alpine:latest
+          cmd: cat /scopes/{pt.param scope}.md
+          mounts:
+            - { path: /scopes, source: { type: repo, path: scopes } }
