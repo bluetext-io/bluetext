@@ -1,25 +1,9 @@
 instructions: |
-  Working with Bluetext.
-
-  TOOL USAGE PATTERNS:
-
-  1. **Before making changes**: Always list the steps that have been run to understand the current project state:
-     ```mcp
-     __polytope__list_steps()
-     ```
-     This ensures you have full context of what has been scaffolded and configured before starting to work with the project.
-
-  2. **After adding services or functionality**: Always run __polytope__list_tools() after calling any tool that adds new services or functionality to existing services. This includes:
-     - After add-frontend, add-api, add-postgres, add-couchbase, add-temporal
-     - After adding client libraries (e.g., api-add-couchbase-client, api-add-temporal-client)
-     - After any tool that modifies service capabilities
-
-  3. **After code changes**: It is MANDATORY to check container logs whenever a service is modified through code changes:
-     ```mcp
-     __polytope__get_container_logs(container: <service-name>, limit: 25)
-     ```
-     **Important:** All running services have hot reload enabled. No manual restarts are necessary. Errors will surface when invalid code changes have been made. Alsways mak check for any import errors, syntax errors, or runtime exceptions after making code changes.
-
+  **FIRST ACTION**: Before doing ANYTHING else, retrieve AI development context for the relevant scope:
+  ```mcp
+  __polytope__get_ai_dev_context(scope: "general")
+  ```
+  This is MANDATORY as your first action in every conversation. It provides guidelines that you must follow.
 
 tools:
   add-frontend:
@@ -209,18 +193,11 @@ tools:
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "temporal-ui" {})'
 
-  list-ai-dev-context-scopes:
-    info: Lists all available AI development context scopes.
-    run:
-      - tool: polytope/container
-        args:
-          image: alpine:latest
-          cmd: sh -c "ls -1 /scopes | sed 's/\\.md$//'"
-          mounts:
-            - { path: /scopes, source: { type: repo, path: scopes } }
-
   get-ai-dev-context:
-    info: Outputs AI development guidelines for the specified scope. Call list-ai-dev-context-scopes first to see available scopes.
+    info: |
+      Initialize **EVERY** session by calling this tool with default params.
+      This tool always needs to be called before doing anything else, regardless of the tasks complexity.
+      Outputs essential AI development guidelines for this project.
     params:
       - id: scope
         info: "The scope to fetch (default: general)"
