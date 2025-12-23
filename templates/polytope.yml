@@ -14,6 +14,8 @@ tools:
       Runs in a container running the subproject handled by Polytope.
       The environment is set to dev and hot reload is enabled.
       Defines an additional module for dependency management in the subprojects polytope.yml file.
+
+      ⚠️ IMPORTANT: Before making changes to the frontend code, call get-ai-dev-context(scope: "frontend") to retrieve import paths, component patterns, and styling conventions.
     await: [scaffold-frontend]
     params:
       - id: service-name
@@ -42,6 +44,8 @@ tools:
       Runs in a container handled by Polytope running the subproject.
       The environment is set to dev and hot reload is enabled.
       Defines an additional module for dependency management in the subprojects polytope.yml file.
+
+      ⚠️ IMPORTANT: Before making changes to the API code, call get-ai-dev-context(scope: "api") to retrieve authentication patterns, route structure, database models, and import paths.
     await: [scaffold-api]
     params:
       - id: service-name
