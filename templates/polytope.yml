@@ -6,6 +6,22 @@ instructions: |
   This is MANDATORY as your first action in every conversation. It provides guidelines that you must follow.
 
 tools:
+  initialize_session:
+    info: |
+      Initialize **EVERY** session by calling this tool with default params.
+      This tool always needs to be called before doing anything else, regardless of the tasks complexity.
+      Outputs essential AI development guidelines for this project.
+    params:
+      - id: scope
+        info: "The scope to fetch (default: general)"
+        type: [default, str, general]
+    run:
+      - tool: polytope/container
+        args:
+          image: alpine:latest
+          cmd: cat /scopes/{pt.param scope}.md
+          mounts:
+            - { path: /scopes, source: { type: repo, path: scopes } }
   add-frontend:
     info: |
       Creates and starts a frontend boilerplate subproject at the supplied path.
@@ -197,19 +213,3 @@ tools:
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "temporal-ui" {})'
 
-  get-ai-dev-context:
-    info: |
-      Initialize **EVERY** session by calling this tool with default params.
-      This tool always needs to be called before doing anything else, regardless of the tasks complexity.
-      Outputs essential AI development guidelines for this project.
-    params:
-      - id: scope
-        info: "The scope to fetch (default: general)"
-        type: [default, str, general]
-    run:
-      - tool: polytope/container
-        args:
-          image: alpine:latest
-          cmd: cat /scopes/{pt.param scope}.md
-          mounts:
-            - { path: /scopes, source: { type: repo, path: scopes } }
