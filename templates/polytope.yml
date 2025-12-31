@@ -1,27 +1,62 @@
 instructions: |
   **FIRST ACTION**: Before doing ANYTHING else, retrieve AI development context for the relevant scope:
   ```mcp
-  __polytope__get_ai_dev_context(scope: "general")
+  __polytope__initialize_session(scope: "general")
   ```
   This is MANDATORY as your first action in every conversation. It provides guidelines that you must follow.
 
 tools:
-  initialize_session:
-    info: |
-      Initialize **EVERY** session by calling this tool with default params.
-      This tool always needs to be called before doing anything else, regardless of the tasks complexity.
-      Outputs essential AI development guidelines for this project.
-    params:
-      - id: scope
-        info: "The scope to fetch (default: general)"
-        type: [default, str, general]
+
+  stack:
+    run:
+      - tool: polytope/hello-world
+        args:
+          message: Nothing to run yet! Call an "add" tool, to add a components to your project.
+
+  scaffold-initialize-session:
     run:
       - tool: polytope/container
         args:
-          image: alpine:latest
+          image: alpine:3.21.2
+          cmd: /bin/add-initialize-session.sh /target/polytope.yml
+          mounts:
+            - { path: /bin/add-initialize-session.sh, source: { type: repo, path: bin/add-initialize-session.sh } }
+            - { path: /target, source: { type: host, path: . } }
+
+  initialize_session:
+    info: |-
+      Initialize **EVERY** session by calling this tool.
+      Returns required development context and ensures the project is running.
+      This tool always needs to be called before doing anything else, regardless of the tasks complexity.
+    await: [scaffold-local-overwrite]
+    run:
+      - id: scaffold-local-overwrite
+        tool: scaffold-initialize-session
+      - id: run-local-init
+        after:
+          - step: scaffold-local-overwrite
+        code: |-
+          #pt-clj
+          (pt/call-module "stack" {})
+
+  get_dev_context:
+    info: |
+      Outputs essential AI development guidelines for this project.
+      Call this tool before making changes to a service.
+    await: [initialize-session]
+    params:
+      - id: scope
+        info: "The scope to fetch (default: general)"
+        type: [default, [enum, general, api, frontend], general]
+    run:
+      - id: initialize-session
+        tool: polytope/container
+        args:
+          image: alpine:3.32.2
           cmd: cat /scopes/{pt.param scope}.md
           mounts:
             - { path: /scopes, source: { type: repo, path: scopes } }
+
   add-frontend:
     info: |
       Creates and starts a frontend boilerplate subproject at the supplied path.
@@ -44,7 +79,8 @@ tools:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: frontend-react-router}
               path: modules/{pt.param service-name}
-              add-to-tools: [{tool: default, call: pt.param service-name}]
+              add-to-tools:
+                - {tool: stack, call: pt.param service-name}
       - id: frontend
         after: {step: scaffold-frontend}
         code: |-
@@ -74,7 +110,8 @@ tools:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
               path: modules/{pt.param service-name}
-              add-to-tools: [{tool: default, call: pt.param service-name}]
+              add-to-tools:
+                - {tool: stack, call: pt.param service-name}
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: lib/py/readme}
               path: lib/py/readme
               on-conflict: skip
@@ -147,7 +184,8 @@ tools:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
               path: modules/postgres
               on-conflict: skip
-              add-to-tools: [{tool: default, call: postgres}]
+              add-to-tools:
+                - {tool: stack, call: postgres}
       - id: postgres
         after: {step: scaffold-postgres}
         code: '#pt-clj (pt/call-module "postgres" {})'
@@ -167,11 +205,13 @@ tools:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: config-manager}
               path: modules/config-manager
               on-conflict: skip
-              add-to-tools: [{tool: default, call: config-manager}]
+              add-to-tools:
+                - {tool: stack, call: config-manager}
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: couchbase}
               path: modules/couchbase
               on-conflict: skip
-              add-to-tools: [{tool: default, call: couchbase}]
+              add-to-tools: 
+                - {tool: stack, call: couchbase}
       - id: config-manager
         after: {step: scaffold-couchbase}
         code: '#pt-clj (pt/call-module "config-manager" {})'
@@ -197,12 +237,13 @@ tools:
               path: modules/temporal
               on-conflict: skip
               add-to-tools:
-                - {tool: default, call: temporal}
-                - {tool: default, call: temporal-ui}
+                - {tool: stack, call: temporal}
+                - {tool: stack, call: temporal-ui}
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
               path: modules/postgres
               on-conflict: skip
-              add-to-tools: [{tool: default, call: postgres}]
+              add-to-tools: 
+                - {tool: stack, call: postgres}
       - id: postgres
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "postgres" {})'
