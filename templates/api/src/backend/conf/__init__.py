@@ -17,12 +17,6 @@ class HttpServerConf(BaseModel):
 
 #### Env Vars ####
 
-## Auth ##
-
-AUTH_OIDC_JWK_URL = EnvVarSpec(id="AUTH_OIDC_JWK_URL", is_optional=True)
-AUTH_OIDC_AUDIENCE = EnvVarSpec(id="AUTH_OIDC_AUDIENCE", is_optional=True)
-AUTH_OIDC_ISSUER = EnvVarSpec(id="AUTH_OIDC_ISSUER", is_optional=True)
-
 ## Logging ##
 
 LOG_LEVEL = EnvVarSpec(id="LOG_LEVEL", default="INFO")
@@ -47,14 +41,6 @@ HTTP_EXPOSE_ERRORS = EnvVarSpec(
     type=(bool, ...),
 )
 
-## PostgreSQL ##
-## NOTE: PostgreSQL configuration is added dynamically by the add-postgres-client script.
-## When added, it creates src/backend/conf/postgres.py with env var definitions.
-
-## Twilio ##
-## NOTE: Twilio configuration is added dynamically by the add-twilio-client script.
-## When added, it creates src/backend/conf/twilio.py with env var definitions.
-
 #### Validation ####
 VALIDATED_ENV_VARS = [
     HTTP_AUTORELOAD,
@@ -63,27 +49,10 @@ VALIDATED_ENV_VARS = [
     LOG_LEVEL,
 ]
 
-
-# Only validate auth vars if USE_AUTH is True
-if USE_AUTH:
-    VALIDATED_ENV_VARS.extend([
-        AUTH_OIDC_JWK_URL,
-        AUTH_OIDC_AUDIENCE,
-        AUTH_OIDC_ISSUER,
-    ])
-
 def validate() -> bool:
     return env.validate(VALIDATED_ENV_VARS)
 
 #### Getters ####
-
-def get_auth_config() -> auth.AuthClientConfig:
-    """Get authentication configuration."""
-    return auth.AuthClientConfig(
-        jwk_url=env.parse(AUTH_OIDC_JWK_URL),
-        audience=env.parse(AUTH_OIDC_AUDIENCE),
-        issuer=env.parse(AUTH_OIDC_ISSUER),
-    )
 
 def get_http_expose_errors() -> str:
     return env.parse(HTTP_EXPOSE_ERRORS)
