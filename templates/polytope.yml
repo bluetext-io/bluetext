@@ -1,27 +1,62 @@
 instructions: |
-  Working with Bluetext.
-
-  TOOL USAGE PATTERNS:
-
-  1. **Before making changes**: Always list the steps that have been run to understand the current project state:
-     ```mcp
-     __polytope__list_steps()
-     ```
-     This ensures you have full context of what has been scaffolded and configured before starting to work with the project.
-
-  2. **After adding services or functionality**: Always run __polytope__list_tools() after calling any tool that adds new services or functionality to existing services. This includes:
-     - After add-frontend, add-api, add-postgres, add-couchbase, add-temporal
-     - After adding client libraries (e.g., api-add-couchbase-client, api-add-temporal-client)
-     - After any tool that modifies service capabilities
-
-  3. **After code changes**: It is MANDATORY to check container logs whenever a service is modified through code changes:
-     ```mcp
-     __polytope__get_container_logs(container: <service-name>, limit: 25)
-     ```
-     **Important:** All running services have hot reload enabled. No manual restarts are necessary. Errors will surface when invalid code changes have been made. Alsways mak check for any import errors, syntax errors, or runtime exceptions after making code changes.
-
+  **FIRST ACTION**: Before doing ANYTHING else, retrieve AI development context for the relevant scope:
+  ```mcp
+  __polytope__initialize_session(scope: "general")
+  ```
+  This is MANDATORY as your first action in every conversation. It provides guidelines that you must follow.
 
 tools:
+
+  stack:
+    run:
+      - tool: polytope/hello-world
+        args:
+          message: Nothing to run yet! Call an "add" tool, to add a components to your project.
+
+  scaffold-initialize-session:
+    run:
+      - tool: polytope/container
+        args:
+          image: alpine:3.21.2
+          cmd: /bin/add-initialize-session.sh /target/polytope.yml
+          mounts:
+            - { path: /bin/add-initialize-session.sh, source: { type: repo, path: bin/add-initialize-session.sh } }
+            - { path: /target, source: { type: host, path: . } }
+
+  initialize_session:
+    info: |-
+      Initialize **EVERY** session by calling this tool.
+      Returns required development context and ensures the project is running.
+      This tool always needs to be called before doing anything else, regardless of the tasks complexity.
+    await: [scaffold-local-overwrite]
+    run:
+      - id: scaffold-local-overwrite
+        tool: scaffold-initialize-session
+      - id: run-local-init
+        after:
+          - step: scaffold-local-overwrite
+        code: |-
+          #pt-clj
+          (pt/call-module "stack" {})
+
+  get_dev_context:
+    info: |
+      Outputs essential AI development guidelines for this project.
+      Call this tool before making changes to a service.
+    await: [initialize-session]
+    params:
+      - id: scope
+        info: "The scope to fetch (default: general)"
+        type: [default, [enum, general, api, frontend], general]
+    run:
+      - id: initialize-session
+        tool: polytope/container
+        args:
+          image: alpine:3.32.2
+          cmd: cat /scopes/{pt.param scope}.md
+          mounts:
+            - { path: /scopes, source: { type: repo, path: scopes } }
+
   add-frontend:
     info: |
       Creates and starts a frontend boilerplate subproject at the supplied path.
@@ -30,6 +65,8 @@ tools:
       Runs in a container running the subproject handled by Polytope.
       The environment is set to dev and hot reload is enabled.
       Defines an additional module for dependency management in the subprojects polytope.yml file.
+
+      ⚠️ IMPORTANT: Before making changes to the frontend code, call get-ai-dev-context(scope: "frontend") to retrieve import paths, component patterns, and styling conventions.
     await: [scaffold-frontend]
     params:
       - id: service-name
@@ -42,7 +79,8 @@ tools:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: frontend-react-router}
               path: modules/{pt.param service-name}
-              add-to-tools: [{tool: default, call: pt.param service-name}]
+              add-to-tools:
+                - {tool: stack, call: pt.param service-name}
       - id: frontend
         after: {step: scaffold-frontend}
         code: |-
@@ -58,6 +96,8 @@ tools:
       Runs in a container handled by Polytope running the subproject.
       The environment is set to dev and hot reload is enabled.
       Defines an additional module for dependency management in the subprojects polytope.yml file.
+
+      ⚠️ IMPORTANT: Before making changes to the API code, call get-ai-dev-context(scope: "api") to retrieve authentication patterns, route structure, database models, and import paths.
     await: [scaffold-api]
     params:
       - id: service-name
@@ -70,7 +110,8 @@ tools:
           actions:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
               path: modules/{pt.param service-name}
-              add-to-tools: [{tool: default, call: pt.param service-name}]
+              add-to-tools:
+                - {tool: stack, call: pt.param service-name}
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: lib/py/readme}
               path: lib/py/readme
               on-conflict: skip
@@ -143,7 +184,8 @@ tools:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
               path: modules/postgres
               on-conflict: skip
-              add-to-tools: [{tool: default, call: postgres}]
+              add-to-tools:
+                - {tool: stack, call: postgres}
       - id: postgres
         after: {step: scaffold-postgres}
         code: '#pt-clj (pt/call-module "postgres" {})'
@@ -163,11 +205,13 @@ tools:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: config-manager}
               path: modules/config-manager
               on-conflict: skip
-              add-to-tools: [{tool: default, call: config-manager}]
+              add-to-tools:
+                - {tool: stack, call: config-manager}
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: couchbase}
               path: modules/couchbase
               on-conflict: skip
-              add-to-tools: [{tool: default, call: couchbase}]
+              add-to-tools: 
+                - {tool: stack, call: couchbase}
       - id: config-manager
         after: {step: scaffold-couchbase}
         code: '#pt-clj (pt/call-module "config-manager" {})'
@@ -193,12 +237,13 @@ tools:
               path: modules/temporal
               on-conflict: skip
               add-to-tools:
-                - {tool: default, call: temporal}
-                - {tool: default, call: temporal-ui}
+                - {tool: stack, call: temporal}
+                - {tool: stack, call: temporal-ui}
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
               path: modules/postgres
               on-conflict: skip
-              add-to-tools: [{tool: default, call: postgres}]
+              add-to-tools: 
+                - {tool: stack, call: postgres}
       - id: postgres
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "postgres" {})'
@@ -208,3 +253,4 @@ tools:
       - id: temporal-ui
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "temporal-ui" {})'
+
