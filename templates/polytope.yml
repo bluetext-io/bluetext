@@ -83,71 +83,121 @@ tools:
                                    :restart-policy restart-policy
                                    :create "always"}))
 
-  add-frontend:
+  scaffold:
     info: |
-      Creates and starts a frontend boilerplate subproject at the supplied path.
-      Always use this when creating a new frontend project.
-      The project uses bun+shadcn+react-router v7.
-      Runs in a container running the subproject handled by Polytope.
-      The environment is set to dev and hot reload is enabled.
-      Defines an additional module for dependency management in the subprojects polytope.yml file.
+      Scaffolds a template to a specified path and adds it to project includes.
+      Use this for creating services, libraries, or any other template-based code.
 
-      ⚠️ IMPORTANT: Before making changes to the frontend code, call get-ai-dev-context(scope: "frontend") to retrieve import paths, component patterns, and styling conventions.
-    await: [scaffold-frontend]
+      IMPORTANT WORKFLOW EXAMPLES:
+
+      For API service:
+        - template: "api"
+        - path: "modules/api"
+        - Then call add-tool-to-run-graph with target="api"
+
+      For Frontend service:
+        - template: "frontend-react-router"
+        - path: "modules/frontend"
+        - Then call add-tool-to-run-graph with target="frontend"
+
+      The service name (used in add-tool-to-run-graph) is always the LAST part of the path.
+      Template name and service name are NOT the same!
+
+      NOTE: This also scaffolds lib/py/readme (required dependency for API services).
     params:
-      - id: service-name
-        info: Name of the service to create and run at <project-root>/modules/<service-name>.
-        type: [default, str, frontend]
+      - id: template
+        info: Template name from bluetext repo (e.g., "api", "frontend-react-router", "postgres", "lib/py/postgres-client")
+        type: str
+      - id: path
+        info: Where to scaffold. For services use "modules/<service-name>" (e.g., "modules/api", "modules/frontend", "modules/postgres")
+        type: str
+      - id: on-conflict
+        info: What to do if files already exist
+        type: [default, [enum, skip, overwrite], skip]
     run:
-      - id: scaffold-frontend
+      - id: scaffold-template
         tool: polytope/scaffold
         args:
           actions:
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: frontend-react-router}
-              path: modules/{pt.param service-name}
-              add-to-tools:
-                - {tool: stack, call: pt.param service-name}
-      - id: frontend
-        after: {step: scaffold-frontend}
-        code: |-
-          #pt-clj
-          (-> (clojure.string/replace (:service-name params) #"[^A-Za-z0-9-]*$" "")
-              (clojure.string/replace  #".*/" "")
-              (pt/call-module {}))
-  add-api:
-    info: |
-      Creates and starts an API boilerplate subproject.
-      Always use this when creating a new API service.
-      The project uses uv+FastAPI+SQLModel and has configuration options for Postgres, Couchbase and Temporal.
-      Runs in a container handled by Polytope running the subproject.
-      The environment is set to dev and hot reload is enabled.
-      Defines an additional module for dependency management in the subprojects polytope.yml file.
-
-      ⚠️ IMPORTANT: Before making changes to the API code, call get-ai-dev-context(scope: "api") to retrieve authentication patterns, route structure, database models, and import paths.
-    await: [scaffold-api]
-    params:
-      - id: service-name
-        info: Name of the service to create and run at <project-root>/modules/<service-name>.
-        type: [default, str, api]
-    run:
-      - id: scaffold-api
-        tool: polytope/scaffold
-        args:
-          actions:
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: api}
-              path: modules/{pt.param service-name}
-              add-to-tools:
-                - {tool: stack, call: pt.param service-name}
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: pt.param template}
+              path: pt.param path
+              on-conflict: pt.param on-conflict
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: lib/py/readme}
               path: lib/py/readme
               on-conflict: skip
-      - id: api
-        after: {step: scaffold-api}
-        code: |-
+      - id: add-to-includes
+        after: {step: scaffold-template}
+        tool: polytope/container
+        args:
+          image: alpine:3.21.2
+          cmd: '#pt-js "/bin/add-to-includes.sh " + params.path + " /target/polytope.yml"'
+          mounts:
+            - { path: /bin/add-to-includes.sh, source: { type: repo, path: bin/add-to-includes.sh } }
+            - { path: /target, source: { type: host, path: . } }
+
+  add-tool-to-run-graph:
+    info: |
+      Adds a tool to a run graph (like stack) and optionally runs it.
+      Use this after scaffolding a service to make it part of your stack.
+
+      IMPORTANT: Use the service name (NOT the full path).
+      Example: After scaffolding to "modules/api", use target="api" (not "modules/api")
+    params:
+      - id: target
+        info: Service/tool name to add (e.g., "api", "frontend", "postgres"). This is the name only, NOT the path.
+        type: str
+      - id: graph
+        info: Which graph/tool to add to
+        type: [default, str, stack]
+      - id: run
+        info: Whether to run the tool after adding
+        type: [default, bool, true]
+    run:
+      - id: add-to-graph
+        tool: polytope/container
+        args:
+          image: alpine:3.21.2
+          cmd: '#pt-js "/bin/add-tool-to-run-graph.sh " + params.target + " " + params.graph + " /target/polytope.yml"'
+          mounts:
+            - { path: /bin/add-tool-to-run-graph.sh, source: { type: repo, path: bin/add-tool-to-run-graph.sh } }
+            - { path: /target, source: { type: host, path: . } }
+      - id: run-target
+        after: {step: add-to-graph}
+        code: |
           #pt-clj
-          (-> (clojure.string/replace (:service-name params) #"[^A-Za-z0-9-]*$" "")
-              (clojure.string/replace  #".*/" "")
-              (pt/call-module {}))
+          (when (:run params)
+            (pt/call-module (:target params) {}))
+
+  add-integration:
+    info: |
+      Integrates a library into a service.
+      Scaffolds the library if needed, then runs the service's integration script.
+    params:
+      - id: target
+        info: Service to integrate into (e.g., api, frontend)
+        type: str
+      - id: integration
+        info: Integration/library to add (e.g., postgres-client, couchbase-client, twilio-client, temporal-client)
+        type: str
+    run:
+      - id: scaffold-lib
+        tool: scaffold
+        args:
+          template: '#pt-js "lib/py/" + params.integration'
+          path: '#pt-js "lib/py/" + params.integration'
+          on-conflict: skip
+      - id: run-integration-script
+        after: {step: scaffold-lib}
+        code: |
+          #pt-clj
+          (let [target (:target params)
+                integration (:integration params)
+                script (str "./bin/add-" integration)]
+            (pt/call-module target {:id (str target "-add-" integration)
+                                   :cmd script
+                                   :restart-policy "never"
+                                   :create "always"}))
+
   api-add-postgres-client:
     info: |
       Adds PostgreSQL client library with database support to an API service.
