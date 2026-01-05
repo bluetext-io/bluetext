@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+
+cd "$(dirname "$0")/../../../workspace"
+
+# Check if modules/kong/polytope.yml exists and contains kong: definition
+if [ -f modules/kong/polytope.yml ] && grep -q "kong:" modules/kong/polytope.yml; then
+    # Check if the environment variables already exist
+    HAS_SHARED_DICT=$(grep -E "^\s+-.*KONG_NGINX_HTTP_LUA_SHARED_DICT" modules/kong/polytope.yml | grep -v "^\s*#")
+    HAS_PLUGINS=$(grep -E "^\s+-.*KONG_PLUGINS.*bundled,oauth-proxy,phantom-token" modules/kong/polytope.yml | grep -v "^\s*#")
+    
+    if [ -z "$HAS_SHARED_DICT" ] || [ -z "$HAS_PLUGINS" ]; then
+        echo ""
+        echo "📝 Adding Curity environment variables to Kong polytope.yml..."
+        
+        # Find the line number of the last env variable (KONG_PROXY_LISTEN) or the env section
+        LAST_ENV_LINE=$(grep -n "KONG_PROXY_LISTEN" modules/kong/polytope.yml | tail -1 | cut -d: -f1)
+        
+        if [ -n "$LAST_ENV_LINE" ]; then
+            # Create a temporary file
+            TMP_FILE=$(mktemp)
+            
+            # Copy lines up to and including the last env variable
+            head -n "$LAST_ENV_LINE" modules/kong/polytope.yml > "$TMP_FILE"
+            
+            # Add the new environment variables if they don't exist
+            if [ -z "$HAS_SHARED_DICT" ]; then
+                echo "            - { name: KONG_NGINX_HTTP_LUA_SHARED_DICT, value: 'phantom-token 10m' }" >> "$TMP_FILE"
+            fi
+            
+            if [ -z "$HAS_PLUGINS" ]; then
+                echo "            - { name: KONG_PLUGINS, value: 'bundled,oauth-proxy,phantom-token' }" >> "$TMP_FILE"
+            fi
+            
+            # Append the rest of the file
+            tail -n +$((LAST_ENV_LINE + 1)) modules/kong/polytope.yml >> "$TMP_FILE"
+            
+            # Replace the original file
+            mv "$TMP_FILE" modules/kong/polytope.yml
+            
+            echo "✅ Added Curity environment variables to Kong polytope.yml"
+        fi
+    else
+        echo "✅ Curity environment variables already present in Kong polytope.yml"
+    fi
+    
+    # Check if the plugins section already exists
+    HAS_PLUGINS_SECTION=$(grep -E "^\s+plugins:" modules/kong/polytope.yml | grep -v "^\s*#")
+    
+    if [ -z "$HAS_PLUGINS_SECTION" ]; then
+        echo ""
+        echo "📝 Adding plugins section to Kong polytope.yml..."
+        
+        # Find the line number of the services section
+        SERVICES_LINE=$(grep -n "^\s*services:" modules/kong/polytope.yml | head -1 | cut -d: -f1)
+        
+        if [ -n "$SERVICES_LINE" ]; then
+            # Create a temporary file
+            TMP_FILE=$(mktemp)
+            
+            # Copy lines up to (but not including) the services section
+            head -n $((SERVICES_LINE - 1)) modules/kong/polytope.yml > "$TMP_FILE"
+            
+            # Add the plugins section
+            echo "          plugins:" >> "$TMP_FILE"
+            echo "            - { name: phantom-token, package: kong-phantom-token, version: 2.0.0 }" >> "$TMP_FILE"
+            echo "" >> "$TMP_FILE"
+            
+            # Append the rest of the file (starting from services section)
+            tail -n +$SERVICES_LINE modules/kong/polytope.yml >> "$TMP_FILE"
+            
+            # Replace the original file
+            mv "$TMP_FILE" modules/kong/polytope.yml
+            
+            echo "✅ Added plugins section to Kong polytope.yml"
+        fi
+    else
+        echo "✅ Plugins section already present in Kong polytope.yml"
+    fi
+fi
+
+# Check if modules/kong/kong.yml exists and add services configuration if needed
+if [ -f modules/kong/kong.yml ]; then
+    # Check if the services section already exists
+    HAS_SERVICES=$(grep -E "^\s*services:" modules/kong/kong.yml | grep -v "^\s*#")
+    
+    if [ -z "$HAS_SERVICES" ]; then
+        echo ""
+        echo "📝 Adding Curity services configuration to Kong kong.yml..."
+        
+        # Append the services configuration to kong.yml
+        cat >> modules/kong/kong.yml << 'EOF'
+
+services:
+- name: api
+  url: http://api:4000
+  routes:
+  - name: api-route
+    strip_path: true
+    paths:
+    - /api
+  plugins:
+    - name: cors
+      config:
+        origins:
+        - http://localhost:3000
+        methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        headers:
+        - Accept
+        - Authorization
+        - Content-Type
+        - x-curity-csrf
+        exposed_headers:
+        - Authorization
+        credentials: true
+        preflight_continue: false
+
+    - name: oauth-proxy
+      config:
+        cookie_prefix: th-
+        cookie_key: "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIH0MF8GCSqGSIb3DQEFDTBSMDEGCSqGSIb3DQEFDDAkBBDb2gJUrdIofyca4wT5\n4utGAgIIADAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQ4BY0OsebJ5thRocp\n5CfKDwSBkHIWOwpTc5kJ1U4NLa4284pBXG2y1yVKB0ByARQnV52EfizVR+AvIiSv\nH1iOOYUG9WeUm3z/N8LhabFniW4/XyUqpUqkdT7HOrWwlG4ODn348rrTDqBgmjzZ\nOaoc1UIo3P7DaBwoWpEfEhu/W1TpjNf8TB+VOBDOtIUI0ZDPZR21WdnX6VBl37/P\noDvY4QGfCA==\n-----END ENCRYPTED PRIVATE KEY-----\n"
+        cookie_key_pass: Password1
+
+    - name: phantom-token
+      config:
+        introspection_endpoint: http://curity:8443/oauth/v2/oauth-introspect
+        client_id: kong-introspection 
+        client_secret: Password1
+        token_cache_seconds: 900
+        verify_ssl: false
+
+- name: spa
+  url: http://spa:3000
+  routes:
+  - name: spa-route
+    strip_path: false
+    paths:
+    - /
+  plugins:
+    - name: cors
+      config:
+        origins:
+        - http://localhost:8443
+        methods:
+        - GET
+        - POST
+        - OPTIONS
+        headers:
+        - Accept
+        - Authorization
+        - Content-Type
+        - x-curity-csrf
+        exposed_headers:
+        - Authorization
+        credentials: true
+        preflight_continue: false
+
+- name: curity
+  url: http://curity:8443
+  routes:
+  - name: curity-route
+    strip_path: false
+    paths:
+    - /apps
+  plugins:
+    - name: cors
+      config:
+        origins:
+        - http://localhost:8000
+        methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        headers:
+        - Accept
+        - Authorization
+        - Content-Type
+        - x-curity-csrf
+        exposed_headers:
+        - Authorization
+        credentials: true
+        preflight_continue: false
+
+- name: curity-proxied
+  url: http://curity:8443/oauth/v2/oauth-userinfo
+  routes:
+  - name: curity-proxied-route
+    strip_path: true
+    paths:
+    - /api/userinfo
+  plugins:
+    - name: cors
+      config:
+        origins:
+        - http://localhost:8000
+        methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        headers:
+        - Accept
+        - Authorization
+        - Content-Type
+        - x-curity-csrf
+        exposed_headers:
+        - Authorization
+        credentials: true
+        preflight_continue: false
+
+    - name: oauth-proxy
+      config:
+        cookie_prefix: th-
+        cookie_key: "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIH0MF8GCSqGSIb3DQEFDTBSMDEGCSqGSIb3DQEFDDAkBBDb2gJUrdIofyca4wT5\n4utGAgIIADAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQ4BY0OsebJ5thRocp\n5CfKDwSBkHIWOwpTc5kJ1U4NLa4284pBXG2y1yVKB0ByARQnV52EfizVR+AvIiSv\nH1iOOYUG9WeUm3z/N8LhabFniW4/XyUqpUqkdT7HOrWwlG4ODn348rrTDqBgmjzZ\nOaoc1UIo3P7DaBwoWpEfEhu/W1TpjNf8TB+VOBDOtIUI0ZDPZR21WdnX6VBl37/P\noDvY4QGfCA==\n-----END ENCRYPTED PRIVATE KEY-----\n"
+        cookie_key_pass: Password1
+EOF
+        
+        echo "✅ Added Curity services configuration to Kong kong.yml"
+    else
+        echo "✅ Curity services configuration already present in Kong kong.yml"
+    fi
+fi

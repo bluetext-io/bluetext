@@ -1,4 +1,15 @@
 tools: 
+  add-phantom-token-to-kong:
+    info: "Configures Kong (if present) to work with the phantom token pattern using Curity."
+    run:
+      - tool: polytope/python
+        args:
+          image: python:3.11.8-slim-bookworm
+          id: phantom-token-kong
+          code: { type: repo, path: . }
+          cmd: ./bin/kong
+          mounts:        
+            - { path: /workspace, source: { type: host, path: . }}
   curity:
     info: "Runs the Curity Identity Server (blueprint: curity-identity-provider)"
     run:

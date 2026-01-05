@@ -215,7 +215,7 @@ tools:
         - Curity subproject under <project-root>/modules/curity.
         - Postgres subproject under <project-root>/modules/postgres if not already present.
       Everything runs in containers handled by Polytope.
-    await: [scaffold-postgres, scaffold-temporal]
+    await: [scaffold-postgres, scaffold-curity]
     run:
       - id: scaffold-curity
         tool: polytope/scaffold
@@ -224,8 +224,7 @@ tools:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: curity}
               path: modules/curity
               on-conflict: skip
-              add-to-tools:
-                - {tool: default, call: curity}
+              add-to-tools: [{tool: default, call: curity}]
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
               path: modules/postgres
               on-conflict: skip
@@ -233,7 +232,7 @@ tools:
       - id: postgres
         after: {step: scaffold-curity}
         code: '#pt-clj (pt/call-module "postgres" {})'
-      - id: temporal
+      - id: curity
         after: {step: scaffold-curity}
         code: '#pt-clj (pt/call-module "curity" {})'
 
