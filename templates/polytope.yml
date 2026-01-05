@@ -208,3 +208,51 @@ tools:
       - id: temporal-ui
         after: {step: scaffold-temporal}
         code: '#pt-clj (pt/call-module "temporal-ui" {})'
+  
+  add-curity:
+    info: |
+      Creates and starts a
+        - Curity subproject under <project-root>/modules/curity.
+        - Postgres subproject under <project-root>/modules/postgres if not already present.
+      Everything runs in containers handled by Polytope.
+    await: [scaffold-postgres, scaffold-temporal]
+    run:
+      - id: scaffold-curity
+        tool: polytope/scaffold
+        args:
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: curity}
+              path: modules/curity
+              on-conflict: skip
+              add-to-tools:
+                - {tool: default, call: curity}
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
+              path: modules/postgres
+              on-conflict: skip
+              add-to-tools: [{tool: default, call: postgres}]
+      - id: postgres
+        after: {step: scaffold-curity}
+        code: '#pt-clj (pt/call-module "postgres" {})'
+      - id: temporal
+        after: {step: scaffold-curity}
+        code: '#pt-clj (pt/call-module "curity" {})'
+
+  add-kong:
+    info: |
+      Creates and starts a
+        - Kong subproject under <project-root>/modules/kong.
+      Everything runs in containers handled by Polytope.
+    await: [scaffold-kong]
+    run:
+      - id: scaffold-kong
+        tool: polytope/scaffold
+        args:
+          actions:
+            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: kong}
+              path: modules/kong
+              on-conflict: skip
+              add-to-tools:
+                - {tool: default, call: kong}
+      - id: kong
+        after: {step: scaffold-kong}
+        code: '#pt-clj (pt/call-module "kong" {})'
