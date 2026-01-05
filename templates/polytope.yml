@@ -250,8 +250,7 @@ tools:
             - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: kong}
               path: modules/kong
               on-conflict: skip
-              add-to-tools:
-                - {tool: default, call: kong}
+              add-to-tools: [{tool: default, call: kong}]
       - id: kong
         after: {step: scaffold-kong}
         code: '#pt-clj (pt/call-module "kong" {})'
