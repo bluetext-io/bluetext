@@ -57,6 +57,32 @@ tools:
           mounts:
             - { path: /scopes, source: { type: repo, path: scopes } }
 
+  add-dependencies:
+    info: |
+      Adds packages to a service's dependency file.
+      Automatically detects the package manager for the target service.
+    params:
+      - id: target
+        info: The service to add dependencies to (e.g., api, frontend)
+        type: str
+      - id: packages
+        info: Packages to add (comma or space separated)
+        type: str
+    run:
+      - id: run-add-deps
+        code: |
+          #pt-clj
+          (let [target (:target params)
+                packages (clojure.string/replace (:packages params) #"[\s,]+" " ")
+                [cmd restart-policy] (case target
+                                       "api" [(str "./bin/add-dependencies " packages) "never"]
+                                       "frontend" [(str "bun add " packages) "on-failure"]
+                                       (throw (Exception. (str "Unknown target: " target))))]
+            (pt/call-module target {:id (str target "-add-deps")
+                                   :cmd cmd
+                                   :restart-policy restart-policy
+                                   :create "always"}))
+
   add-frontend:
     info: |
       Creates and starts a frontend boilerplate subproject at the supplied path.

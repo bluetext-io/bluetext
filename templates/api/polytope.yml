@@ -49,19 +49,6 @@ tools:
           mounts:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: {{ project-name | kebab_case}}-dependency-cache } }
             - { path: /lib/py, source: { type: repo, path: /lib/py, repo: "#pt-clj pt/module-project-ref" } }
-  {{ project-name }}-add:
-    info: Adds one or more packages to the pyproject.toml file.
-    params:
-      - id: packages
-        info: comma/whitespace-separated list of python packages to add to pyproject.toml
-        type: str
-    run:
-      - tool: {{ project-name }}
-        args:
-          id: {{ project-name }}-add
-          restart-policy: never
-          cmd: '#pt-js "./bin/add-dependencies " + params.packages.replace(/[\s,]+/g, " ")'
-          create: always
 
   {{ project-name }}-add-couchbase-client:
     info: Run before add-couchbase-model. Adds Couchbase client library with all interaction functions and registers add-couchbase-model tool to polytope.yml.
