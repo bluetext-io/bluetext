@@ -1,0 +1,29 @@
+tools: 
+  add-phantom-token-to-kong:
+    info: "Configures Kong (if present) to work with the phantom token pattern using Curity."
+    run:
+      - tool: polytope/python
+        args:
+          image: python:3.11.8-slim-bookworm
+          id: phantom-token-kong
+          code: { type: repo, path: . }
+          cmd: ./bin/kong
+          mounts:        
+            - { path: /workspace, source: { type: host, path: . }}
+  curity:
+    info: "Runs the Curity Identity Server (blueprint: curity-identity-provider)"
+    run:
+      - tool: polytope/curity
+        args:
+          image: curity.azurecr.io/curity/idsvr:10.4.0
+          config-file: { type: host, path: ./modules/curity/config.xml }
+          restart: { policy: always }
+          password: password
+          env:
+            - { name: ADMIN, value: true }
+            - { name: CURITY_BASE_URL, value: http://localhost:8443 }
+            - { name: WEB_APP_URL, value: http://localhost:8000 }
+            - { name: AGENT_BASE_URL, value: http://localhost:8000 }
+          mounts:
+            - { path: /opt/idsvr/usr/bin/post-commit-cli-scripts, source: { type: host, path: ./modules/curity/post-commit-cli-scripts }}
+            - { path: /opt/idsvr/etc/init/curity-users.xml, source: { type: host, path: ./modules/curity/users.xml }}

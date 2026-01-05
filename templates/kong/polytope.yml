@@ -1,0 +1,16 @@
+tools:
+  kong:
+    info: "Runs the Kong API Gateway"
+    run:
+      - tool: polytope/kong!simple
+        args:
+          image: gcr.io/arched-inkwell-420116/kong-oauth-proxy:latest
+          config-file: { type: host, path: ./modules/kong/kong.yml }
+          autoreload: true
+          env:
+            - { name: KONG_ADMIN_LISTEN, value: "0.0.0.0:8001" }
+            - { name: KONG_PROXY_LISTEN, value: "0.0.0.0:8000" }
+          services:
+            - { id: kong, ports: [{ port: 8000, protocol: http, expose-as: 8000 }] }
+            - { id: kong-admin, ports: [{ port: 8001, protocol: http, expose-as: 8001 }] }
+
