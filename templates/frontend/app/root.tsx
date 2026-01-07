@@ -6,42 +6,9 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
-import React from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
-
-// Error boundary to catch the initial load context error
-class MetaLinksErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; retryCount: number }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, retryCount: 0 };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error) {
-    // Reset error state after a brief delay to retry (max 3 times)
-    if (this.state.retryCount < 3) {
-      setTimeout(() => {
-        this.setState({ hasError: false, retryCount: this.state.retryCount + 1 });
-      }, 100);
-    }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      // Return empty while waiting for retry
-      return null;
-    }
-    return this.props.children;
-  }
-}
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -62,13 +29,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="data:," />
-        <link rel="apple-touch-icon" href="data:," />
-        <link rel="apple-touch-icon-precomposed" href="data:," />
-        <MetaLinksErrorBoundary>
-          <Meta />
-          <Links />
-        </MetaLinksErrorBoundary>
+        <Meta />
+        <Links />
         {/* Theme detection script - runs before React hydration */}
         <script dangerouslySetInnerHTML={{
           __html: `
@@ -87,28 +49,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   document.documentElement.classList.remove('dark');
                 }
               });
-            })();
-          `
-        }} />
-        {/* Auto-reload on initial container load error */}
-        <script dangerouslySetInnerHTML={{
-          __html: `
-            (function() {
-              if (typeof window !== 'undefined' && !window.__errorReloadAttempted) {
-                let errorCount = 0;
-                window.addEventListener('error', function(e) {
-                  if (e.message && (
-                    e.message.includes('Invalid hook call') ||
-                    e.message.includes('Cannot read properties of null (reading \\'useContext\\')')
-                  )) {
-                    errorCount++;
-                    if (errorCount === 1 && !window.__errorReloadAttempted) {
-                      window.__errorReloadAttempted = true;
-                      setTimeout(() => window.location.reload(), 1000);
-                    }
-                  }
-                });
-              }
             })();
           `
         }} />

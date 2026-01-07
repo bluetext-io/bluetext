@@ -1,4 +1,4 @@
-# React Frontend Template
+# React Router Frontend Template
 
 React Router v7 application with Bun, TypeScript, Tailwind CSS, and shadcn/ui + Radix UI components.
 
@@ -36,9 +36,9 @@ import { Button } from "../../components/ui/button";  // Use ~ instead
 **Rule**: If it's in `app/`, use `~`. If it's in project root, use `@`.
 
 ## Dependencies
-To add packages, use the polytope-mcp run tool:
-```json
-{"module": "add-{{ project-name }}", "arguments": {"packages": "axios react-query"}}
+To add packages, use the polytope module:
+```bash
+polytope run {{ project-name }}-add --packages "axios react-query"
 ```
 
 ## 🎨 CRITICAL: Theming & Styling Guidelines

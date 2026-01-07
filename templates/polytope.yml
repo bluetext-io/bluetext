@@ -88,31 +88,20 @@ tools:
   scaffold:
     info: |
       Scaffolds a template to a specified path and adds it to project includes.
+      Also scaffolds basic bluetext project structure if not already present, e.g. `lib/` folder.
       Use this for creating services, libraries, or any other template-based code.
 
-      IMPORTANT WORKFLOW EXAMPLES:
+      E.g. for an API:
+        1. call `scaffold(template: "api", path: "services/my-api")`
+        2. call `add-to-run-graph(target: "stack", tool: "my-api")`
 
-      For API service:
-        - template: "api"
-        - path: "modules/api"
-        - Then call add-tool-to-run-graph with target="api"
-
-      For Frontend service:
-        - template: "frontend-react-router"
-        - path: "modules/frontend"
-        - Then call add-tool-to-run-graph with target="frontend"
-
-      The service name (used in add-tool-to-run-graph) is always the LAST part of the path.
-      Template name and service name are NOT the same!
-
-      NOTE: This also scaffolds lib/py/readme (required dependency for API services).
     params:
       - id: template
-        info: Template name from bluetext repo (e.g., "api", "frontend-react-router", "postgres", "lib/py/postgres-client")
-        type: str
+        info: Template to scaffold into users directory.
+        type: [enum, api, frontend, couchbase, temporal, postgres]
       - id: path
-        info: Where to scaffold. For services use "modules/<service-name>" (e.g., "modules/api", "modules/frontend", "modules/postgres")
-        type: str
+        info: Where to scaffold. For services use "services/<service-name>".
+        type: [default, str, "services/api"]
       - id: on-conflict
         info: What to do if files already exist
         type: [default, [enum, skip, overwrite], skip]
@@ -137,38 +126,38 @@ tools:
             - { path: /bin/add-to-includes.sh, source: { type: repo, path: bin/add-to-includes.sh } }
             - { path: /target, source: { type: host, path: . } }
 
-  add-tool-to-run-graph:
+  add-to-run-graph:
     info: |
       Adds a tool to a run graph (like stack) and optionally runs it.
       Use this after scaffolding a service to make it part of your stack.
 
       IMPORTANT: Use the service name (NOT the full path).
-      Example: After scaffolding to "modules/api", use target="api" (not "modules/api")
+      Example: After scaffolding to "services/api", use tool="api" (not "services/api")
     params:
-      - id: target
+      - id: tool
         info: Service/tool name to add (e.g., "api", "frontend", "postgres"). This is the name only, NOT the path.
         type: str
-      - id: graph
+      - id: target
         info: Which graph/tool to add to
         type: [default, str, stack]
       - id: run
         info: Whether to run the tool after adding
         type: [default, bool, true]
     run:
-      - id: add-to-graph
+      - id: add-to-target
         tool: polytope/container
         args:
           image: alpine:3.21.2
-          cmd: '#pt-js "/bin/add-tool-to-run-graph.sh " + params.target + " " + params.graph + " /target/polytope.yml"'
+          cmd: '#pt-js "/bin/add-tool-to-run-graph.sh " + params.tool + " " + params.target + " /target/polytope.yml"'
           mounts:
             - { path: /bin/add-tool-to-run-graph.sh, source: { type: repo, path: bin/add-tool-to-run-graph.sh } }
             - { path: /target, source: { type: host, path: . } }
-      - id: run-target
-        after: {step: add-to-graph}
+      - id: run-tool
+        after: {step: add-to-target}
         code: |
           #pt-clj
           (when (:run params)
-            (pt/call-module (:target params) {}))
+            (pt/call-module (:tool params) {}))
 
   add-integration:
     info: |
@@ -247,88 +236,4 @@ tools:
                                  (clojure.string/replace #".*/" ""))
                 tool-name (str service-name "-add-twilio-client")]
             (pt/call-tool tool-name {}))
-
-  add-postgres:
-    info: |
-      Creates and starts a Postgres subproject under <project-root>/modules/postgres.
-      Runs a Postgres server in a container handled by Polytope.
-      The environment is set to run in a basic dev mode with no auth, etc.
-    await: [scaffold-postgres]
-    run:
-      - id: scaffold-postgres
-        tool: polytope/scaffold
-        args:
-          actions:
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
-              path: modules/postgres
-              on-conflict: skip
-              add-to-tools:
-                - {tool: stack, call: postgres}
-      - id: postgres
-        after: {step: scaffold-postgres}
-        code: '#pt-clj (pt/call-module "postgres" {})'
-
-  add-couchbase:
-    info: |
-      Creates and starts a Couchbase subproject under <project-root>/modules/couchbase.
-      Runs a Couchbase server in a container handled by Polytope.
-      Associated configuration files can be found at modules/config-manager/conf/.
-      The environment is set to run in a basic dev mode with no auth, etc.
-    await: [scaffold-couchbase, scaffold-config-manager]
-    run:
-      - id: scaffold-couchbase
-        tool: polytope/scaffold
-        args:
-          actions:
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: config-manager}
-              path: modules/config-manager
-              on-conflict: skip
-              add-to-tools:
-                - {tool: stack, call: config-manager}
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: couchbase}
-              path: modules/couchbase
-              on-conflict: skip
-              add-to-tools: 
-                - {tool: stack, call: couchbase}
-      - id: config-manager
-        after: {step: scaffold-couchbase}
-        code: '#pt-clj (pt/call-module "config-manager" {})'
-      - id: couchbase
-        after: {step: scaffold-couchbase}
-        code: '#pt-clj (pt/call-module "couchbase" {})'
-
-  add-temporal:
-    info: |
-      Creates and starts a
-        - Temporal subproject under <project-root>/modules/temporal.
-        - Postgres subproject under <project-root>/modules/postgres if not already present.
-        - Temporal UI subproject under <project-root>/modules/temporal-ui.
-      Everything runs in containers handled by Polytope.
-      The environment is set to run in a basic dev mode with no auth, etc.
-    await: [scaffold-postgres, scaffold-temporal]
-    run:
-      - id: scaffold-temporal
-        tool: polytope/scaffold
-        args:
-          actions:
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: temporal}
-              path: modules/temporal
-              on-conflict: skip
-              add-to-tools:
-                - {tool: stack, call: temporal}
-                - {tool: stack, call: temporal-ui}
-            - template: {type: repo, repo: "#pt-clj pt/module-repo-ref", path: postgres}
-              path: modules/postgres
-              on-conflict: skip
-              add-to-tools: 
-                - {tool: stack, call: postgres}
-      - id: postgres
-        after: {step: scaffold-temporal}
-        code: '#pt-clj (pt/call-module "postgres" {})'
-      - id: temporal
-        after: {step: scaffold-temporal}
-        code: '#pt-clj (pt/call-module "temporal" {})'
-      - id: temporal-ui
-        after: {step: scaffold-temporal}
-        code: '#pt-clj (pt/call-module "temporal-ui" {})'
 
