@@ -32,12 +32,14 @@ tools:
     run:
       - id: scaffold-local-overwrite
         tool: scaffold-initialize-session
-      - id: run-local-init
+      - id: attempt-run-local-stack
         after:
           - step: scaffold-local-overwrite
         code: |-
           #pt-clj
           (pt/call-module "stack" {})
+      - id: echo-context
+        tool: get_dev_context
 
   get_dev_context:
     info: |
@@ -49,10 +51,10 @@ tools:
         info: "The scope to fetch (default: general)"
         type: [default, [enum, general, api, frontend], general]
     run:
-      - id: initialize-session
+      - id: get_dev_context
         tool: polytope/container
         args:
-          image: alpine:3.32.2
+          image: alpine:3.21.2
           cmd: cat /scopes/{pt.param scope}.md
           mounts:
             - { path: /scopes, source: { type: repo, path: scopes } }
