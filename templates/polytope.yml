@@ -164,8 +164,8 @@ tools:
       Integrates a library into a service.
       Scaffolds the library if needed, then runs the service's integration script.
     params:
-      - id: target
-        info: Service to integrate into (e.g., api, frontend)
+      - id: target-path
+        info: Service to integrate into (e.g., api/src, frontend/app)
         type: str
       - id: integration
         info: Integration/library to add (e.g., postgres-client, couchbase-client, twilio-client, temporal-client)
@@ -174,9 +174,32 @@ tools:
       - id: scaffold-lib
         tool: scaffold
         args:
-          template: '#pt-js "lib/py/" + params.integration'
-          path: '#pt-js "lib/py/" + params.integration'
+          template: "lib/py/{pt.params integration}"
+          path: "lib/py/{pt.params integration}"
           on-conflict: skip
+
+      - id: scaffold-integration
+        tool: scaffold
+        args:
+          template: "integrations/py/{pt.params integration}"
+          path: "{pt.params target-path}/{pt.params integration}"
+          on-conflict: skip
+      - id: add-env-vars
+        tool: run-script
+        args:
+          language: js
+          script: |
+            const{execSync}=require('child_process'),fs=require('fs');
+            execSync('npm install yaml dotenv --prefix /tmp/d',{stdio:'pipe'});
+            const Y=require('/tmp/d/node_modules/yaml'),D=require('/tmp/d/node_modules/dotenv');
+            const env=D.parse(fs.readFileSync('/repo/{pt.param target-path}','utf8'));
+            const doc=Y.parseDocument(fs.readFileSync('/repo/{pt.param yaml-file}','utf8'));
+            const arr=doc.get('tools').get('api').get('run').get(0).get('args').get('env');
+            const exist=new Set(arr.items.filter(i=>i.get).map(i=>i.get('name')));
+            Object.entries(env).filter(([k])=>!exist.has(k)).forEach(([k,v])=>arr.add({name:k,value:v}));
+            fs.writeFileSync('/repo/{pt.param yaml-file}',doc.toString());
+            console.log('Added env vars');
+
       - id: run-integration-script
         after: {step: scaffold-lib}
         code: |
@@ -188,6 +211,43 @@ tools:
                                    :cmd script
                                    :restart-policy "never"
                                    :create "always"}))
+
+  run-script:
+    info: |
+      Runs a custom script inside a service container.
+      Useful for executing one-off commands or setup scripts.
+      Exactly one of  script and path-to-script must be provided.
+    params:
+      - id: dependencies
+        info: Service to run the script in (e.g., api, frontend)
+        type: [maybe, [str]]
+      - id: script
+        info: Script/command to run
+        type: [maybe, str]
+      - id: path-to-script
+        info: Path to a script file to run (alternative to 'script' param)
+        type: [maybe, str]
+      - id: language
+        info: Language of the script (e.g., bash, python)
+        type: [enum, bash, python, js]
+      - id: repo
+        info: Repository context to run the script in
+        type: [default, str, .]
+    run:
+      - id: run-custom-script
+        tool: polytope/run-script
+        args:
+          dependencies: pt.param dependencies
+          script: |
+            #pt-clj
+            (cond 
+              (:script params)
+                {:type "string", :data (:script params)}
+              (:path-to-script params)
+                {:type "repo", :path (:path-to-script params)
+              })
+          language: pt.param language
+          repo: {type: host, path: pt.param repo}
 
   api-add-postgres-client:
     info: |
