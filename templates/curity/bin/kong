@@ -92,7 +92,7 @@ if [ -f modules/kong/kong.yml ]; then
 
 services:
 - name: api
-  url: http://api:4000
+  url: http://api:3030
   routes:
   - name: api-route
     strip_path: true
@@ -102,7 +102,7 @@ services:
     - name: cors
       config:
         origins:
-        - http://localhost:3000
+        - http://localhost:51732
         methods:
         - GET
         - POST
@@ -133,10 +133,10 @@ services:
         token_cache_seconds: 900
         verify_ssl: false
 
-- name: spa
-  url: http://spa:3000
+- name: frontend
+  url: http://frontend:51732
   routes:
-  - name: spa-route
+  - name: frontend-route
     strip_path: false
     paths:
     - /

@@ -56,3 +56,30 @@ tools:
           restart-policy: on-failure
           cmd: '#pt-js "bun add " + params.packages.replace(/[\s,]+/g, " ")'
           create: always
+
+  {{ project-name }}-integrate-with-phantom-token-handler-secured-api:
+    info: Adds a Phantom Token Handler Secured API client to a react web app.
+    params: []
+    run:
+      - tool: polytope/scaffold
+        id: add-phantom-token-handler-secured-api-client
+        args:
+          actions:
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/integrations/typescript/react/phantom-token-handler-secured-api}
+              path: /modules/{{ project-name }}/app/integrations/api
+              on-conflict: skip
+
+      - tool: polytope/scaffold
+        id: add-phantom-token-handler-top-bar-component
+        args:
+          actions:
+            - template: {type: repo, repo: "bluetext-io/bluetext", path: /templates/components/react/phantom-token-handler-top-bar}
+              path: /modules/{{ project-name }}/app/components/top-bar
+              on-conflict: skip
+      
+      - tool: {{ project-name }}
+        args:
+          id: {{ project-name }}-add
+          restart-policy: on-failure
+          cmd: "bun add @curity/token-handler-js-assistant"
+          create: always

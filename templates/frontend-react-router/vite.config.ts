@@ -15,4 +15,9 @@ export default defineConfig({
     },
   },
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
+  server: {
+    port: 51732,
+    host: true,
+    allowedHosts: ['frontend'],
+  },
 });

@@ -19,7 +19,7 @@ tools:
             - {name: LOG_LEVEL, value: warn}
             - {name: POSTGRES_PWD, value: password}
             - {name: POSTGRES_SEEDS, value: postgres}
-            - {name: POSTGRES_USER, value: postgres}
+            - {name: POSTGRES_USER, value: admin}
             - {name: TEMPORAL_ADDRESS, value: temporal:7233}
             - {name: TEMPORAL_CLI_ADDRESS, value: temporal:7233}
           mounts:
